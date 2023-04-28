@@ -5,70 +5,62 @@ import 'package:sql_query_builder/sql_query_builder.dart';
 
 import '../utils/utils.dart';
 
-void dbMigrate() async {
+void dbRollback() async {
   await createMigrationTableIfNotExist();
   String path = '${Directory.current.path}/db/migration';
   final tempFolder = Directory('$path/tmp');
   try {
-    final folder = Directory(path);
-    final files = folder
-        .listSync()
-        .whereType<File>()
-        .where((entity) => entity.path.endsWith('.dart'));
-
     List latestBatch = await QueryBuilder.table(MIGRATION_TABLE_NAME)
         .select('batch')
         .orderBy('batch', 'desc')
         .limit(1)
         .get();
 
-    int batchNumber = 1;
-
-    List migrated = [];
+    int batchNumber = 0;
 
     if (latestBatch.isNotEmpty) {
-      batchNumber = int.parse(latestBatch.first['batch'].toString()) + 1;
+      batchNumber = int.parse(latestBatch.first['batch'].toString());
     }
 
-    for (var entity in files) {
-      Uri uri = Platform.script.resolve(entity.path);
-      String filename = uri.pathSegments.last.replaceAll('.dart', '');
+    List migrationsToRollback = [];
 
-      Map? migration = await QueryBuilder.table(MIGRATION_TABLE_NAME)
-          .find('migration', filename);
+    if (batchNumber > 0) {
+      migrationsToRollback = await QueryBuilder.table(MIGRATION_TABLE_NAME)
+          .select('migration')
+          .where('batch', batchNumber)
+          .get();
+    }
 
-      if (migration == null) {
-        migrated.add(filename);
-        File tempFile = _getTempFileContent(entity.path, filename, path);
+    for (var migration in migrationsToRollback) {
+      String filename = migration['migration'];
+      Uri uri = Platform.script.resolve("$path/$filename.dart");
 
-        print('\x1B[32mMigrating: $filename\x1B[0m');
+      File tempFile = _getTempFileContent(uri.toFilePath(), filename, path);
 
-        ProcessResult result =
-            Process.runSync('dart', [tempFile.path, filename]);
+      print('\x1B[32mRolling back: $filename\x1B[0m');
 
-        if (result.stderr != '') {
-          print('\x1B[34mFailed to migrate: $filename\x1B[0m');
-          print('\x1B[31mError: ${result.stderr}\x1B[0m');
-        } else {
-          await QueryBuilder.table(MIGRATION_TABLE_NAME).insert({
-            'migration': filename,
-            'batch': batchNumber,
-          });
-          print('\x1B[32mMigrated: $filename\x1B[0m');
-        }
+      ProcessResult result = Process.runSync('dart', [tempFile.path, filename]);
+
+      if (result.stderr != '') {
+        print('\x1B[34mFailed to rollback: $filename\x1B[0m');
+        print('\x1B[31mError: ${result.stderr}\x1B[0m');
+      } else {
+        print('\x1B[32mFinished: $filename\x1B[0m');
       }
     }
     if (tempFolder.existsSync()) {
       tempFolder.delete(recursive: true);
     }
-    if (migrated.isEmpty) {
-      print("\x1B[34mMigrations not found. Nothing to migrate!\x1B[0m");
+    if (batchNumber > 0) {
+      await QueryBuilder.table(MIGRATION_TABLE_NAME)
+          .where('batch', batchNumber)
+          .delete();
     }
-    await SqlQueryBuilder().db.close();
+    SqlQueryBuilder().db.close();
   } catch (error) {
-    print('\x1B[34mNothing to migrate!\x1B[0m');
+    print('\x1B[34mMigrations not found. Nothing to migrate!\x1B[0m');
     print(error);
-    await SqlQueryBuilder().db.close();
+    SqlQueryBuilder().db.close();
   }
 }
 
@@ -111,8 +103,8 @@ void main(args) async {
   );
   await db.open();
   SqlQueryBuilder.initialize(database: db);
-  await up();
-  db.close();
+  await down();
+  await db.close();
 }
 """;
   String timestamp = DateTime.now().microsecondsSinceEpoch.toString();

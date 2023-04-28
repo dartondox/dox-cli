@@ -21,4 +21,5 @@ createMigration(name) {
   final file = File('$path$filename.dart');
   file.createSync(recursive: true);
   file.writeAsStringSync(_sample, mode: FileMode.write);
+  print('\x1B[32m$filename migration created successfully.\x1B[0m');
 }

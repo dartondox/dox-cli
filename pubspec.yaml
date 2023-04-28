@@ -1,13 +1,14 @@
 name: dox
-description: A dox cli to create model, migration for sql_query_builder
-version: 1.0.2
+description: A dox cli to create model, migration with sql_query_builder
+version: 1.0.6
 # repository: https://github.com/my_org/my_repo
 
 environment:
   sdk: '>=2.19.0 <3.0.0'
 
-# dependencies:
-#   path: ^1.8.0
+dependencies:
+  sql_query_builder: ^1.0.11
+  postgres: ^2.6.1
 
 dev_dependencies:
   lints: ^2.0.0
@@ -15,5 +16,3 @@ dev_dependencies:
 
 executables:
   dox: dox
-dependencies:
-  sql_query_builder: ^1.0.9

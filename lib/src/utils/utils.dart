@@ -14,7 +14,8 @@ String pascalToSnake(String input) {
       result.write(String.fromCharCode(letter)); // Add original character
     }
   }
-  return result.toString();
+  String finalString = result.toString().replaceAll(RegExp('_+'), '_');
+  return finalString;
 }
 
 String snakeToPascal(String input) {
@@ -45,7 +46,7 @@ String parseName(name) {
   String uuid =
       '${now.year}_${_formatNumber(now.month)}_${_formatNumber(now.day)}_${_formatNumber(now.hour)}${_formatNumber(now.minute)}${_formatNumber(now.second)}${now.microsecond}';
 
-  return "${name}_$uuid".replaceAll(RegExp(r'[^\w]'), "");
+  return "${uuid}_$name".replaceAll(RegExp(r'[^\w]'), "");
 }
 
 String _formatNumber(int number) {
