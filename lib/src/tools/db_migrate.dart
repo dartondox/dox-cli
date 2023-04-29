@@ -14,7 +14,10 @@ void dbMigrate() async {
     final files = folder
         .listSync()
         .whereType<File>()
-        .where((entity) => entity.path.endsWith('.dart'));
+        .where((entity) => entity.path.endsWith('.dart'))
+        .toList();
+
+    files.sort((a, b) => a.path.compareTo(b.path));
 
     List latestBatch = await QueryBuilder.table(MIGRATION_TABLE_NAME)
         .select('batch')
@@ -111,8 +114,14 @@ void main(args) async {
   );
   await db.open();
   SqlQueryBuilder.initialize(database: db);
+  try {
   await up();
-  db.close();
+    if(!db.isClosed) {
+      db.close();
+    }
+  } catch(error) {
+    db.close();
+  }
 }
 """;
   String timestamp = DateTime.now().microsecondsSinceEpoch.toString();

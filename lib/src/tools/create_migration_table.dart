@@ -13,7 +13,9 @@ Future<void> createMigrationTableIfNotExist() async {
     username: '${env['DB_USERNAME']}',
     password: '${env['DB_PASSWORD']}',
   );
-  await db.open();
+  if (db.isClosed) {
+    await db.open();
+  }
   SqlQueryBuilder.initialize(database: db);
   await Schema.create(MIGRATION_TABLE_NAME, (Table table) {
     table.id();
