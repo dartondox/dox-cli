@@ -1,6 +1,6 @@
 name: dox
 description: A dox cli to create model, migration with sql_query_builder
-version: 1.0.21
+version: 1.0.22
 # repository: https://github.com/my_org/my_repo
 
 environment:
