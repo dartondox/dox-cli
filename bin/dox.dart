@@ -1,4 +1,6 @@
 import 'package:dox/dox.dart';
+import 'package:dox/src/tools/create_controller.dart';
+import 'package:dox/src/tools/create_middleware.dart';
 import 'package:dox/src/tools/db_migrate_rollback.dart';
 import 'package:dox/src/tools/server_serve.dart';
 import 'package:dox/src/tools/update_dox.dart';
@@ -58,5 +60,25 @@ void main(List<String> args) async {
 
   if (args.length == 1 && versionKeys.contains(args[0])) {
     print('Dox version: 1.0.30');
+  }
+
+  if (args.length == 2 && args[0] == 'create:controller') {
+    createController(args[1], false);
+  }
+
+  if (args.length == 2 && args[0] == 'create:middleware') {
+    createMiddleware(args[1]);
+  }
+
+  if (args.length == 3 &&
+      args[0] == 'create:controller' &&
+      args[2] == '--resource') {
+    createController(args[1], true);
+  }
+
+  if (args.length == 3 &&
+      args[0] == 'create:controller' &&
+      args[1] == '--resource') {
+    createController(args[2], true);
   }
 }

@@ -2,7 +2,7 @@ import 'dart:io';
 
 import '../utils/utils.dart';
 
-String getSample(className, filename) {
+String _getSample(className, filename) {
   return '''
 import 'package:dox_query_builder/dox_query_builder.dart';
 
@@ -40,7 +40,7 @@ bool createModel(filename) {
   }
 
   file.createSync(recursive: true);
-  file.writeAsStringSync(getSample(className, filename), mode: FileMode.write);
+  file.writeAsStringSync(_getSample(className, filename), mode: FileMode.write);
   print('\x1B[32m$className model created successfully.\x1B[0m');
   return true;
 }
