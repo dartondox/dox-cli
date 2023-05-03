@@ -70,15 +70,11 @@ void main(List<String> args) async {
     createMiddleware(args[1]);
   }
 
-  if (args.length == 3 &&
-      args[0] == 'create:controller' &&
-      args[2] == '--resource') {
+  if (args.length == 3 && args[0] == 'create:controller' && args[2] == '-r') {
     createController(args[1], true);
   }
 
-  if (args.length == 3 &&
-      args[0] == 'create:controller' &&
-      args[1] == '--resource') {
+  if (args.length == 3 && args[0] == 'create:controller' && args[1] == '-r') {
     createController(args[2], true);
   }
 }
