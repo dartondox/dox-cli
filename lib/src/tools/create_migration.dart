@@ -3,7 +3,7 @@ import 'dart:io';
 import '../utils/utils.dart';
 
 String _sample = '''
-import 'package:dox_query_builder/dox_query_builder.dart';
+import 'package:dox_query_builder/dox_query_builder.dart'; // ignore: file_names
 
 Future<void> up() async {
   await Schema.create('table_name', (Table table) {});
