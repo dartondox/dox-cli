@@ -1,6 +1,6 @@
 name: dox
 description: A dox cli to create model, migration with dox_query_builder
-version: 1.0.23
+version: 1.0.30
 # repository: https://github.com/my_org/my_repo
 
 environment:
@@ -9,6 +9,8 @@ environment:
 dependencies:
   dox_query_builder: ^1.0.0
   postgres: ^2.6.1
+  dox_core: ^0.0.2
+  watcher: ^1.0.2
 
 dev_dependencies:
   lints: ^2.0.0

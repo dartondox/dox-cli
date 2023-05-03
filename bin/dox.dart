@@ -2,7 +2,6 @@ import 'package:dox/dox.dart';
 import 'package:dox/src/tools/db_migrate_rollback.dart';
 import 'package:dox/src/tools/server_serve.dart';
 import 'package:dox/src/tools/update_dox.dart';
-import 'package:dox/src/utils/nodemon.dart';
 
 void main(List<String> args) async {
   if (args.length == 2 && args[0] == 'create:migration') {
@@ -28,10 +27,15 @@ void main(List<String> args) async {
     dbRollback();
   }
 
-  if (args.length == 1 && args[0] == 'serve') {
-    installNodemonIfNotExist();
+  List<String> serveKeys = [
+    'serve',
+    'server',
+    's',
+  ];
+
+  if (args.length == 1 && serveKeys.contains(args[0])) {
+    await watchBuilder();
     serverServe();
-    watchBuilder();
   }
 
   if (args.length == 1 && args[0] == 'build') {
@@ -53,6 +57,6 @@ void main(List<String> args) async {
   ];
 
   if (args.length == 1 && versionKeys.contains(args[0])) {
-    print('Dox version: 1.0.22');
+    print('Dox version: 1.0.30');
   }
 }

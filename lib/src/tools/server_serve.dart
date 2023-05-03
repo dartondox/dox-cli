@@ -1,16 +1,41 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-serverServe() async {
-  var process = await Process.start(
-      'nodemon', ['-x', "dart run bin/server.dart", '-e', 'dart']);
+import 'package:watcher/watcher.dart';
 
-  // Listen for output from the process
+serverServe() async {
+  DirectoryWatcher watcher = DirectoryWatcher(Directory.current.path);
+  Timer? timer;
+  Process? process;
+
+  process = await startServer();
+
+  watcher.events.listen((event) async {
+    if (timer != null) {
+      timer?.cancel();
+    }
+    timer = Timer(Duration(milliseconds: 500), () async {
+      process?.kill();
+      int? exitCode = await process?.exitCode;
+      if (exitCode.toString().isNotEmpty) {
+        process = await startServer('Restarting..');
+      }
+    });
+  });
+}
+
+Future<Process> startServer([message]) async {
+  print("\x1B[2J\x1B[0;0H");
+  if (message != null) {
+    print('\x1B[34m[Dox] $message..\x1B[0m');
+  }
+  Process process = await Process.start('dart', ['run', 'bin/server.dart']);
   process.stdout.transform(utf8.decoder).listen((data) {
     List lines = data.split("\n");
     for (String line in lines) {
       if (line.isNotEmpty) {
-        print(line.replaceAll('nodemon', 'dox'));
+        print(line);
       }
     }
   });
@@ -19,13 +44,11 @@ serverServe() async {
     List lines = data.split("\n");
     for (String line in lines) {
       if (line.isNotEmpty) {
-        print(line.replaceAll('nodemon', 'dox'));
+        print(line);
       }
     }
   });
-
-  var exitCode = await process.exitCode;
-  print('Process exited with code $exitCode');
+  return process;
 }
 
 watchBuilder() async {
@@ -39,16 +62,14 @@ watchBuilder() async {
       }
     }
   });
-
-  var exitCode = await process.exitCode;
-  print('Process exited with code $exitCode');
+  return process;
 }
 
 buildBuilder() async {
   var process = await Process.start('dart', ['run', 'build_runner', 'build']);
   process.stdout.transform(utf8.decoder).listen((data) {
     List lines = data.split("\n");
-    print(lines.first.toString().replaceAll('INFO', 'dox'));
+    print(lines.first.toString().replaceAll('INFO', 'Dox'));
   });
 
   process.stderr.transform(utf8.decoder).listen((data) {
@@ -67,7 +88,7 @@ buildServer() async {
 
   process.stdout.transform(utf8.decoder).listen((data) {
     List lines = data.split("\n");
-    print(lines.first.toString().replaceAll('INFO', 'dox'));
+    print(lines.first.toString().replaceAll('INFO', 'Dox'));
   });
 
   process.stderr.transform(utf8.decoder).listen((data) {
