@@ -19,7 +19,7 @@ void dbMigrate() async {
 
     files.sort((a, b) => a.path.compareTo(b.path));
 
-    List latestBatch = await QueryBuilder.table(MIGRATION_TABLE_NAME)
+    List latestBatch = await QueryBuilder.table(migrationTableName)
         .select('batch')
         .orderBy('batch', 'desc')
         .limit(1)
@@ -37,7 +37,7 @@ void dbMigrate() async {
       Uri uri = Platform.script.resolve(entity.path);
       String filename = uri.pathSegments.last.replaceAll('.dart', '');
 
-      Map? migration = await QueryBuilder.table(MIGRATION_TABLE_NAME)
+      Map? migration = await QueryBuilder.table(migrationTableName)
           .find('migration', filename);
 
       if (migration == null) {
@@ -53,7 +53,7 @@ void dbMigrate() async {
           print('\x1B[34mFailed to migrate: $filename\x1B[0m');
           print('\x1B[31mError: ${result.stderr}\x1B[0m');
         } else {
-          await QueryBuilder.table(MIGRATION_TABLE_NAME).insert({
+          await QueryBuilder.table(migrationTableName).insert({
             'migration': filename,
             'batch': batchNumber,
           });

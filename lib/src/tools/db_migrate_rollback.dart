@@ -10,7 +10,7 @@ void dbRollback() async {
   String path = '${Directory.current.path}/db/migration';
   final tempFolder = Directory('$path/tmp');
   try {
-    List latestBatch = await QueryBuilder.table(MIGRATION_TABLE_NAME)
+    List latestBatch = await QueryBuilder.table(migrationTableName)
         .select('batch')
         .orderBy('batch', 'desc')
         .limit(1)
@@ -25,7 +25,7 @@ void dbRollback() async {
     List migrationsToRollback = [];
 
     if (batchNumber > 0) {
-      migrationsToRollback = await QueryBuilder.table(MIGRATION_TABLE_NAME)
+      migrationsToRollback = await QueryBuilder.table(migrationTableName)
           .select('migration')
           .where('batch', batchNumber)
           .get();
@@ -52,7 +52,7 @@ void dbRollback() async {
       tempFolder.delete(recursive: true);
     }
     if (batchNumber > 0) {
-      await QueryBuilder.table(MIGRATION_TABLE_NAME)
+      await QueryBuilder.table(migrationTableName)
           .where('batch', batchNumber)
           .delete();
     }

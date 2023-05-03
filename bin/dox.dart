@@ -6,6 +6,19 @@ import 'package:dox/src/tools/server_serve.dart';
 import 'package:dox/src/tools/update_dox.dart';
 
 void main(List<String> args) async {
+  List<String> versionKeys = [
+    '--version',
+    'version',
+    '-version',
+    'v',
+    '-v',
+    '--v'
+  ];
+
+  if (args.length == 1 && versionKeys.contains(args[0])) {
+    print('Dox version: 1.0.32');
+  }
+
   if (args.length == 2 && args[0] == 'create:migration') {
     createMigration(args[1]);
   }
@@ -47,19 +60,6 @@ void main(List<String> args) async {
 
   if (args.length == 1 && args[0] == 'update') {
     updateDox();
-  }
-
-  List<String> versionKeys = [
-    '--version',
-    'version',
-    '-version',
-    'v',
-    '-v',
-    '--v'
-  ];
-
-  if (args.length == 1 && versionKeys.contains(args[0])) {
-    print('Dox version: 1.0.30');
   }
 
   if (args.length == 2 && args[0] == 'create:controller') {

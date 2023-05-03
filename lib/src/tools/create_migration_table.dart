@@ -2,7 +2,7 @@ import 'package:dox/dox.dart';
 import 'package:dox_query_builder/dox_query_builder.dart';
 import 'package:postgres/postgres.dart';
 
-String MIGRATION_TABLE_NAME = 'dox_db_migration';
+String migrationTableName = 'dox_db_migration';
 
 Future<void> createMigrationTableIfNotExist() async {
   Map<String, String> env = loadEnv();
@@ -17,7 +17,7 @@ Future<void> createMigrationTableIfNotExist() async {
     await db.open();
   }
   SqlQueryBuilder.initialize(database: db);
-  await Schema.create(MIGRATION_TABLE_NAME, (Table table) {
+  await Schema.create(migrationTableName, (Table table) {
     table.id();
     table.string('migration');
     table.integer('batch');
