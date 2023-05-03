@@ -1,6 +1,6 @@
 import 'package:dox/dox.dart';
+import 'package:dox_query_builder/dox_query_builder.dart';
 import 'package:postgres/postgres.dart';
-import 'package:sql_query_builder/sql_query_builder.dart';
 
 String MIGRATION_TABLE_NAME = 'dox_db_migration';
 

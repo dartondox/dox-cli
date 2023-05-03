@@ -4,7 +4,7 @@ import '../utils/utils.dart';
 
 String getSample(className, filename) {
   return '''
-import 'package:sql_query_builder/sql_query_builder.dart';
+import 'package:dox_query_builder/dox_query_builder.dart';
 
 part '$filename.model.g.dart';
 
