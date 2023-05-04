@@ -17,7 +17,7 @@ void main(List<String> args) async {
   ];
 
   if (args.length == 1 && versionKeys.contains(args[0])) {
-    print('Dox version: 1.0.37');
+    print('Dox version: 1.0.38');
   }
 
   if (args.length == 2 && args[0] == 'create') {
