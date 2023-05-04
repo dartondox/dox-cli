@@ -17,7 +17,7 @@ void main(List<String> args) async {
   ];
 
   if (args.length == 1 && versionKeys.contains(args[0])) {
-    print('Dox version: 1.0.36');
+    print('Dox version: 1.0.37');
   }
 
   if (args.length == 2 && args[0] == 'create') {
@@ -54,12 +54,14 @@ void main(List<String> args) async {
   ];
 
   if (args.length == 1 && serveKeys.contains(args[0])) {
-    if (args.length == 2 && args[1] == '--watch-build-runner') {
-      watchBuilder();
-      serverServe();
-    } else {
-      serverServe();
-    }
+    serverServe();
+  }
+
+  if (args.length == 2 &&
+      serveKeys.contains(args[0]) &&
+      args[1] == '--watch-build-runner') {
+    watchBuilder();
+    serverServe();
   }
 
   if (args.length == 1 && args[0] == 'build_runner:watch') {
