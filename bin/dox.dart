@@ -54,8 +54,20 @@ void main(List<String> args) async {
   ];
 
   if (args.length == 1 && serveKeys.contains(args[0])) {
-    await watchBuilder();
-    serverServe();
+    if (args.length == 2 && args[1] == '--watch-build-runner') {
+      watchBuilder();
+      serverServe();
+    } else {
+      serverServe();
+    }
+  }
+
+  if (args.length == 1 && args[0] == 'build_runner:watch') {
+    watchBuilder();
+  }
+
+  if (args.length == 1 && args[0] == 'build_runner:build') {
+    buildBuilder();
   }
 
   if (args.length == 1 && args[0] == 'build') {
