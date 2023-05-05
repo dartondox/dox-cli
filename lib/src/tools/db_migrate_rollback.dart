@@ -6,7 +6,7 @@ import 'package:dox_query_builder/dox_query_builder.dart';
 import '../utils/utils.dart';
 
 void dbRollback() async {
-  await createMigrationTableIfNotExist();
+  var db = await createMigrationTableIfNotExist();
   String path = '${Directory.current.path}/db/migration';
   final tempFolder = Directory('$path/tmp');
   try {
@@ -56,11 +56,11 @@ void dbRollback() async {
           .where('batch', batchNumber)
           .delete();
     }
-    SqlQueryBuilder().db.close();
+    db.close();
   } catch (error) {
     print('\x1B[34mMigrations not found. Nothing to migrate!\x1B[0m');
     print(error);
-    SqlQueryBuilder().db.close();
+    db.close();
   }
 }
 

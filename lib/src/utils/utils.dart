@@ -35,7 +35,7 @@ Map<String, String> loadEnv() {
   for (var d in list) {
     List keyValue = d.toString().split('=');
     if (keyValue[0].toString().isNotEmpty) {
-      data[keyValue[0].toString()] = keyValue[1].toString();
+      data[keyValue[0].toString().trim()] = keyValue[1].toString().trim();
     }
   }
   return data;

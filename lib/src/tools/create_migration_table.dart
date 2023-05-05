@@ -4,7 +4,7 @@ import 'package:postgres/postgres.dart';
 
 String migrationTableName = 'dox_db_migration';
 
-Future<void> createMigrationTableIfNotExist() async {
+Future<PostgreSQLConnection> createMigrationTableIfNotExist() async {
   Map<String, String> env = loadEnv();
   PostgreSQLConnection db = PostgreSQLConnection(
     '${env['DB_HOST']}',
@@ -22,4 +22,5 @@ Future<void> createMigrationTableIfNotExist() async {
     table.string('migration');
     table.integer('batch');
   });
+  return db;
 }

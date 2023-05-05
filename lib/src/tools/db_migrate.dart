@@ -6,7 +6,7 @@ import 'package:dox_query_builder/dox_query_builder.dart';
 import '../utils/utils.dart';
 
 void dbMigrate() async {
-  await createMigrationTableIfNotExist();
+  var db = await createMigrationTableIfNotExist();
   String path = '${Directory.current.path}/db/migration';
   final tempFolder = Directory('$path/tmp');
   try {
@@ -67,11 +67,11 @@ void dbMigrate() async {
     if (migrated.isEmpty) {
       print("\x1B[34mMigrations not found. Nothing to migrate!\x1B[0m");
     }
-    await SqlQueryBuilder().db.close();
+    await db.close();
   } catch (error) {
     print('\x1B[34mNothing to migrate!\x1B[0m');
     print(error);
-    await SqlQueryBuilder().db.close();
+    await db.close();
   }
 }
 
