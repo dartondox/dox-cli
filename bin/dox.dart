@@ -3,6 +3,7 @@ import 'package:dox/src/tools/create_controller.dart';
 import 'package:dox/src/tools/create_middleware.dart';
 import 'package:dox/src/tools/create_project.dart';
 import 'package:dox/src/tools/db_migrate_rollback.dart';
+import 'package:dox/src/tools/generate_key.dart';
 import 'package:dox/src/tools/server_serve.dart';
 import 'package:dox/src/tools/update_dox.dart';
 
@@ -95,5 +96,9 @@ void main(List<String> args) async {
 
   if (args.length == 3 && args[0] == 'create:controller' && args[1] == '-r') {
     createController(args[2], true);
+  }
+
+  if (args.length == 1 && args[0] == 'key:generate') {
+    generateKey();
   }
 }
