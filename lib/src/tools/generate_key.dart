@@ -21,6 +21,8 @@ void overrideKey(secret) {
   final contents = file.readAsStringSync();
   List list = contents.split('\n');
 
+  List<String> keys = [];
+
   for (var d in list) {
     if (d.toString().trim().isEmpty) {
       content.add('');
@@ -32,9 +34,13 @@ void overrideKey(secret) {
         if (key == 'APP_KEY') {
           value = secret;
         }
+        keys.add(key);
         content.add("$key=$value");
       }
     }
+  }
+  if (!keys.contains('APP_KEY')) {
+    content = ["APP_KEY=$secret", ...content];
   }
   file.writeAsStringSync(content.join("\n"));
 }
