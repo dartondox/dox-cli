@@ -16,22 +16,25 @@ generateKey() {
 }
 
 void overrideKey(secret) {
-  String content = '';
+  List<String> content = [];
   final file = File('${Directory.current.path}/.env');
   final contents = file.readAsStringSync();
   List list = contents.split('\n');
+
   for (var d in list) {
-    List keyValue = d.toString().split('=');
-    if (keyValue.length == 2) {
-      String key = keyValue[0];
-      String value = keyValue[1];
-      if (key == 'APP_KEY') {
-        value = secret;
-      }
-      content += "$key=$value\n";
+    if (d.toString().trim().isEmpty) {
+      content.add('');
     } else {
-      content += '\n';
+      List keyValue = d.toString().split('=');
+      if (keyValue.length == 2) {
+        String key = keyValue[0];
+        String value = keyValue[1];
+        if (key == 'APP_KEY') {
+          value = secret;
+        }
+        content.add("$key=$value");
+      }
     }
   }
-  file.writeAsStringSync(content);
+  file.writeAsStringSync(content.join("\n"));
 }
