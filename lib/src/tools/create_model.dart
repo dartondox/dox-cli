@@ -10,6 +10,9 @@ part '$filename.model.g.dart';
 
 @IsModel()
 class $className extends Model {
+  @override
+  List<String> get hidden => [];
+
   @Column()
   int? id;
 
