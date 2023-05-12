@@ -1,6 +1,6 @@
 name: dox
 description: A dox cli to create model, migration with dox_query_builder
-version: 1.0.45
+version: 1.0.46
 homepage: https://dox.zinkyawkyaw.dev
 
 environment:

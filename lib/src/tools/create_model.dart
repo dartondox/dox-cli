@@ -13,9 +13,6 @@ class $className extends ${className}Generator {
   @override
   List<String> get hidden => [];
 
-  @Column()
-  int? id;
-
   @Column(name: 'created_at')
   DateTime? createdAt;
 
