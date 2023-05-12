@@ -8,8 +8,8 @@ import 'package:dox_core/dox_core.dart';
 
 part '$filename.model.g.dart';
 
-@IsModel()
-class $className extends Model {
+@DoxModel()
+class $className extends ${className}Generator {
   @override
   List<String> get hidden => [];
 
@@ -21,12 +21,6 @@ class $className extends Model {
 
   @Column(name: 'updated_at')
   DateTime? updatedAt;
-
-  @override
-  fromJson(Map<String, dynamic> json) => _\$${className}FromJson(json);
-
-  @override
-  toMap() => _\$${className}ToJson(this);
 }
 ''';
 }

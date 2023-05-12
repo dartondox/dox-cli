@@ -1,13 +1,13 @@
 name: dox
 description: A dox cli to create model, migration with dox_query_builder
-version: 1.0.44
+version: 1.0.45
 homepage: https://dox.zinkyawkyaw.dev
 
 environment:
-  sdk: '>=2.19.0 <3.0.0'
+  sdk: '>=2.19.0 <4.0.0'
 
 dependencies:
-  dox_query_builder: ^1.0.9
+  dox_query_builder: ^1.1.0
   postgres: ^2.6.1
   dox_core: ^0.0.2
   watcher: ^1.0.2
