@@ -12,12 +12,6 @@ part '$filename.model.g.dart';
 class $className extends ${className}Generator {
   @override
   List<String> get hidden => [];
-
-  @Column(name: 'created_at')
-  DateTime? createdAt;
-
-  @Column(name: 'updated_at')
-  DateTime? updatedAt;
 }
 ''';
 }
@@ -25,7 +19,7 @@ class $className extends ${className}Generator {
 bool createModel(filename) {
   filename = pascalToSnake(filename);
   String className = snakeToPascal(filename);
-  String path = '${Directory.current.path}/lib/models/';
+  String path = '${Directory.current.path}/lib/models/$filename/';
   final file = File('$path$filename.model.dart');
 
   if (file.existsSync()) {
