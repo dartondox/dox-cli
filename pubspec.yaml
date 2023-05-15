@@ -1,7 +1,7 @@
 name: dox
 description: A dox cli to create model, migration with dox_query_builder
 version: 1.0.48
-homepage: https://dox.zinkyawkyaw.dev
+homepage: https://www.dartondox.dev/
 
 environment:
   sdk: '>=2.19.0 <4.0.0'
