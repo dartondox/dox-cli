@@ -1,6 +1,6 @@
 name: dox
 description: A dox cli to create model, migration with dox_query_builder
-version: 1.0.50
+version: 1.0.51
 homepage: https://www.dartondox.dev/
 
 environment:
