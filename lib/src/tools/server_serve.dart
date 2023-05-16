@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as path;
 import 'package:watcher/watcher.dart';
 
 serverServe() async {
@@ -9,24 +10,28 @@ serverServe() async {
   Timer? timer;
   Process? process;
 
-  process = await startServer();
+  process = await _startServer();
 
   watcher.events.listen((event) async {
+    if (path.extension(event.path) != '.dart') {
+      return;
+    }
+    print("\x1B[34m[Dox] File changed: ${path.basename(event.path)}");
     if (timer != null) {
       timer?.cancel();
     }
+
     timer = Timer(Duration(milliseconds: 500), () async {
       process?.kill();
       int? exitCode = await process?.exitCode;
       if (exitCode.toString().isNotEmpty) {
-        process = await startServer('Restarting..');
+        process = await _startServer();
       }
     });
   });
 }
 
-Future<Process> startServer([message]) async {
-  print("\x1B[2J\x1B[0;0H");
+Future<Process> _startServer([message]) async {
   if (message != null) {
     print('\x1B[34m[Dox] $message..\x1B[0m');
   }

@@ -1,6 +1,6 @@
 name: dox
 description: A dox cli to create model, migration with dox_query_builder
-version: 1.0.49
+version: 1.0.50
 homepage: https://www.dartondox.dev/
 
 environment:
@@ -11,6 +11,7 @@ dependencies:
   postgres: ^2.6.1
   dox_core: ^0.0.2
   watcher: ^1.0.2
+  path: ^1.8.3
 
 dev_dependencies:
   lints: ^2.0.0

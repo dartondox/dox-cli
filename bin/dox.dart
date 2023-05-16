@@ -18,7 +18,7 @@ void main(List<String> args) async {
   ];
 
   if (args.length == 1 && versionKeys.contains(args[0])) {
-    print('Dox version: 1.0.49');
+    print('Dox version: 1.0.50');
   }
 
   if (args.length == 2 && args[0] == 'create') {
@@ -55,13 +55,13 @@ void main(List<String> args) async {
   ];
 
   if (args.length == 1 && serveKeys.contains(args[0])) {
+    watchBuilder();
     serverServe();
   }
 
   if (args.length == 2 &&
       serveKeys.contains(args[0]) &&
-      args[1] == '--watch-build-runner') {
-    watchBuilder();
+      args[1] == '--ignore-build-runner') {
     serverServe();
   }
 
