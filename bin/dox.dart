@@ -18,7 +18,7 @@ void main(List<String> args) async {
   ];
 
   if (args.length == 1 && versionKeys.contains(args[0])) {
-    print('Dox version: 1.0.51');
+    print('Dox version: 1.0.52');
   }
 
   if (args.length == 2 && args[0] == 'create') {
@@ -94,8 +94,8 @@ void main(List<String> args) async {
     createController(args[1], true);
   }
 
-  if (args.length == 3 && args[0] == 'create:controller' && args[1] == '-r') {
-    createController(args[2], true);
+  if (args.length == 3 && args[0] == 'create:controller' && args[2] == '-ws') {
+    createWsController(args[1]);
   }
 
   if (args.length == 1 && args[0] == 'key:generate') {
