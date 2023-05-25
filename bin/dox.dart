@@ -2,6 +2,7 @@ import 'package:dox/dox.dart';
 import 'package:dox/src/tools/create_controller.dart';
 import 'package:dox/src/tools/create_middleware.dart';
 import 'package:dox/src/tools/create_project.dart';
+import 'package:dox/src/tools/create_request.dart';
 import 'package:dox/src/tools/db_migrate_rollback.dart';
 import 'package:dox/src/tools/generate_key.dart';
 import 'package:dox/src/tools/server_serve.dart';
@@ -18,7 +19,7 @@ void main(List<String> args) async {
   ];
 
   if (args.length == 1 && versionKeys.contains(args[0])) {
-    print('Dox version: 1.0.52');
+    print('Dox version: 1.0.53');
   }
 
   if (args.length == 2 && args[0] == 'create') {
@@ -88,6 +89,10 @@ void main(List<String> args) async {
 
   if (args.length == 2 && args[0] == 'create:middleware') {
     createMiddleware(args[1]);
+  }
+
+  if (args.length == 2 && args[0] == 'create:request') {
+    createRequest(args[1]);
   }
 
   if (args.length == 3 && args[0] == 'create:controller' && args[2] == '-r') {
