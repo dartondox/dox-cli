@@ -6,14 +6,20 @@ String _getSample(className, filename) {
   return '''
 import 'package:dox_core/dox_core.dart';
 
-class ${className}Request implements FormRequest {
+class ${className}Request extends FormRequest {
   @override
-  Map<String, String> rules(DoxRequest req) {
+  bool get useAsControllerRequest => false;
+
+  @override
+  void setUp() {}
+
+  @override
+  Map<String, String> rules() {
     return {};
   }
 
   @override
-  Map<String, String> messages(DoxRequest req) {
+  Map<String, String> messages() {
     return {};
   }
 }
