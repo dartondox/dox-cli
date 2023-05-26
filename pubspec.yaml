@@ -1,6 +1,6 @@
 name: dox
-description: A dox cli to create model, migration with dox_query_builder
-version: 1.0.53
+description: This is a cli tool to generate migration, model and to handle database migration with dox framework. It support up and down methods to control migration version.
+version: 1.0.54
 homepage: https://www.dartondox.dev/digging-deeper/dox-cli
 
 environment:
@@ -9,7 +9,6 @@ environment:
 dependencies:
   dox_query_builder: ^1.1.3
   postgres: ^2.6.1
-  dox_core: ^0.0.2
   watcher: ^1.0.2
   path: ^1.8.3
 
