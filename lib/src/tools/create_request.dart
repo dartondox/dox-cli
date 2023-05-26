@@ -8,9 +8,6 @@ import 'package:dox_core/dox_core.dart';
 
 class ${className}Request extends FormRequest {
   @override
-  bool get useAsControllerRequest => false;
-
-  @override
   void setUp() {}
 
   @override
