@@ -3,6 +3,7 @@ import 'package:dox/src/tools/create_controller.dart';
 import 'package:dox/src/tools/create_middleware.dart';
 import 'package:dox/src/tools/create_project.dart';
 import 'package:dox/src/tools/create_request.dart';
+import 'package:dox/src/tools/create_serializer.dart';
 import 'package:dox/src/tools/db_migrate_rollback.dart';
 import 'package:dox/src/tools/generate_key.dart';
 import 'package:dox/src/tools/help.dart';
@@ -109,6 +110,11 @@ void main(List<String> args) async {
 
   if (args.length == 2 && args[0] == 'create:request') {
     createRequest(args[1]);
+    return;
+  }
+
+  if (args.length == 2 && args[0] == 'create:serializer') {
+    createSerializer(args[1]);
     return;
   }
 
