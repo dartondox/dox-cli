@@ -1,4 +1,4 @@
-## 1.0.54
+## 1.0.55
 
 - Add command to create serializer
 - Add help option
