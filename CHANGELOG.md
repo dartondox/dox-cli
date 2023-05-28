@@ -1,5 +1,10 @@
 ## 1.0.54
 
+- Add command to create serializer
+- Add help option
+
+## 1.0.54
+
 - update request template
 - Add help option
 
