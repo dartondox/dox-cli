@@ -1,4 +1,4 @@
-## Unreleased
+## 3.0.0
 
 - The CLI moved to its own repo: [dartondox/dox-cli](https://github.com/dartondox/dox-cli). It is the same code.
 

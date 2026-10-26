@@ -6,8 +6,8 @@ import 'package:dox/src/version.dart';
 
 /// `dox update`: installs the newest CLI with the same major version.
 ///
-/// A plain `dart pub global activate dox` skips pre-releases. During the
-/// 3.x alpha it would install the old 2.x CLI. So this reads the version
+/// A plain `dart pub global activate dox` skips pre-releases, so it can
+/// pick an older major version. So this reads the version
 /// list from pub.dev and asks for that exact version.
 Future<void> updateDox() async {
   String? newest = _newestVersion();
