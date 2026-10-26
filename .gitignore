@@ -6,3 +6,6 @@ db
 .env
 pubspec.lock
 bin/dox
+pubspec_overrides.yaml
+build/
+.DS_Store

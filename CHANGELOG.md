@@ -1,3 +1,7 @@
+## Unreleased
+
+- The CLI moved to its own repo: [dartondox/dox-cli](https://github.com/dartondox/dox-cli). It is the same code.
+
 ## 3.0.0-rc.2
 
 - Fix: `dox create` and `dox update` sorted pre-releases only by their number, so `3.0.0-alpha.17` looked newer than `3.0.0-rc.1`. `dox create` then cloned the alpha.17 template. Now the label counts first: alpha < beta < rc < stable.
