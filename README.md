@@ -11,12 +11,12 @@ Source code: [github.com/dartondox/dox-cli](https://github.com/dartondox/dox-cli
 ## Install
 
 ```bash
-dart pub global activate dox ^3.0.0-rc
+dart pub global activate dox
 ```
 
 If your shell can not find `dox`, add `$HOME/.pub-cache/bin` to your `PATH`.
 
-Dox 3.x is a release candidate (`3.0.0-rc.x`). `dox update` installs the newest version with the same major version, previews included.
+`dox update` installs the newest version with the same major version.
 
 ## Use it
 
@@ -61,7 +61,7 @@ Run `dox help` for all commands.
 
 ## Release
 
-Push a `v<version>` tag on `main`, like `v3.0.0-rc.3`.
+Push a `v<version>` tag on `main`.
 The tag must match `version` in `pubspec.yaml` and `lib/src/version.dart`.
 The Release workflow publishes the package to pub.dev.
 
