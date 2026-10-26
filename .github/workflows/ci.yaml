@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get
+      - run: dart format --output=none --set-exit-if-changed .
+      - run: dart analyze --fatal-infos
+      # The version that `dox --version` prints must match pubspec.yaml.
+      - name: Check the version constant
+        run: |
+          v=$(sed -nE 's/^version:[[:space:]]*([^[:space:]]+).*/\1/p' pubspec.yaml)
+          grep -qx "const version = '$v';" lib/src/version.dart || { echo "::error::lib/src/version.dart is not $v"; exit 1; }
+      - run: dart test
+      - run: dart pub publish --dry-run

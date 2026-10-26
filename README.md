@@ -3,20 +3,20 @@
 The `dox` command line tool. It creates projects and files, runs the dev server, builds for production and runs migrations.
 
 [![pub package](https://img.shields.io/pub/v/dox.svg)](https://pub.dev/packages/dox)
-[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/dartondox/dox/blob/main/LICENSE)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/dartondox/dox-cli/blob/main/LICENSE)
 
-Part of [Dox](https://dartondox.dev), a web backend framework for Dart, like Laravel.
-Source code: [github.com/dartondox/dox](https://github.com/dartondox/dox).
+Part of [Dox](https://dartondox.dev), a web backend framework for Dart.
+Source code: [github.com/dartondox/dox-cli](https://github.com/dartondox/dox-cli).
 
 ## Install
 
 ```bash
-dart pub global activate dox ^3.0.0-alpha
+dart pub global activate dox ^3.0.0-rc
 ```
 
 If your shell can not find `dox`, add `$HOME/.pub-cache/bin` to your `PATH`.
 
-Dox 3.x is in alpha (`3.0.0-alpha.x`). `dox update` installs the newest version with the same major version, previews included.
+Dox 3.x is a release candidate (`3.0.0-rc.x`). `dox update` installs the newest version with the same major version, previews included.
 
 ## Use it
 
@@ -59,6 +59,12 @@ Run `dox help` for all commands.
 - [CLI reference](https://dartondox.dev/latest/reference/cli/)
 - [API reference](https://pub.dev/documentation/dox/latest/)
 
+## Release
+
+Push a `v<version>` tag on `main`, like `v3.0.0-rc.3`.
+The tag must match `version` in `pubspec.yaml` and `lib/src/version.dart`.
+The Release workflow publishes the package to pub.dev.
+
 ## License
 
-MIT. See [LICENSE](https://github.com/dartondox/dox/blob/main/LICENSE).
+MIT. See [LICENSE](https://github.com/dartondox/dox-cli/blob/main/LICENSE).
