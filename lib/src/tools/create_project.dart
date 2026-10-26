@@ -105,8 +105,8 @@ void replaceProjectName(Directory folder, String projectName) {
 
 /// The newest dox-sample release with the same major version as this CLI.
 ///
-/// GitHub's `releases/latest` skips pre-releases, so during an alpha it
-/// would give the old 2.x template. This reads the release list instead.
+/// GitHub's `releases/latest` skips pre-releases, so it can give a
+/// template of an older major version. This reads the release list instead.
 String? _latestTemplate() {
   ProcessResult result = Process.runSync('curl', [
     'https://api.github.com/repos/dartondox/dox-sample/releases?per_page=100',
