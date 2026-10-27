@@ -1,3 +1,7 @@
+## Unreleased
+
+- Fix: when only `dox serve` got SIGTERM or SIGINT (eg. `kill <pid>` from a script), the server and `build_runner watch` it started kept running and held the port. Now dox stops them first, waits up to 5 seconds, then exits. Ctrl+C in a terminal already worked.
+
 ## 3.0.0
 
 - The CLI moved to its own repo: [dartondox/dox-cli](https://github.com/dartondox/dox-cli). It is the same code.
