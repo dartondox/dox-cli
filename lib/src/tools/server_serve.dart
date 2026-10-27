@@ -5,6 +5,36 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:watcher/watcher.dart';
 
+/// The server and build_runner that dox started. They stop with dox, also
+/// when only dox gets the signal (eg. `kill <pid>`), not the whole group.
+final Set<Process> _children = <Process>{};
+bool _watchingSignals = false;
+
+void _track(Process process) {
+  _children.add(process);
+  process.exitCode.then((_) => _children.remove(process));
+  if (_watchingSignals) return;
+  _watchingSignals = true;
+  // Windows can not watch SIGTERM
+  for (ProcessSignal signal in <ProcessSignal>[
+    ProcessSignal.sigint,
+    if (!Platform.isWindows) ProcessSignal.sigterm,
+  ]) {
+    signal.watch().listen((_) => stopChildren());
+  }
+}
+
+/// Stops the child processes, waits up to 5 seconds for them, then exits.
+Future<void> stopChildren() async {
+  List<Process> children = _children.toList();
+  for (Process child in children) {
+    child.kill();
+  }
+  await Future.wait(children.map((Process c) => c.exitCode))
+      .timeout(const Duration(seconds: 5), onTimeout: () => <int>[]);
+  exit(0);
+}
+
 Future<void> serverServe() async {
   DirectoryWatcher watcher = DirectoryWatcher(Directory.current.path);
   Timer? timer;
@@ -36,6 +66,7 @@ Future<Process> _startServer([String? message]) async {
     print('\x1B[34m[Dox] $message..\x1B[0m');
   }
   Process process = await Process.start('dart', ['run', 'bin/server.dart']);
+  _track(process);
   process.stdout.transform(utf8.decoder).listen((data) {
     List lines = data.split("\n");
     for (String line in lines) {
@@ -58,6 +89,7 @@ Future<Process> _startServer([String? message]) async {
 
 Future<Process> watchBuilder() async {
   var process = await Process.start('dart', ['run', 'build_runner', 'watch']);
+  _track(process);
 
   process.stderr.transform(utf8.decoder).listen((data) {
     List lines = data.split("\n");
