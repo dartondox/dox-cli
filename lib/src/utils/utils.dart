@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 String pascalToSnake(String input) {
@@ -69,4 +70,20 @@ String _formatNumber(int number) {
 
 String fileGetContents(String path) {
   return File(path).readAsStringSync();
+}
+
+/// GETs [url] and returns the body. Returns null on a network error or a
+/// status that is not 200.
+Future<String?> httpGet(String url) async {
+  HttpClient client = HttpClient();
+  try {
+    HttpClientRequest request = await client.getUrl(Uri.parse(url));
+    HttpClientResponse response = await request.close();
+    String body = await response.transform(utf8.decoder).join();
+    return response.statusCode == 200 ? body : null;
+  } on IOException {
+    return null;
+  } finally {
+    client.close();
+  }
 }

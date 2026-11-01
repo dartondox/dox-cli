@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dox/src/utils/utils.dart';
 import 'package:dox/src/utils/versions.dart';
 import 'package:dox/src/version.dart';
 
@@ -10,12 +11,13 @@ import 'package:dox/src/version.dart';
 /// pick an older major version. So this reads the version
 /// list from pub.dev and asks for that exact version.
 Future<void> updateDox() async {
-  String? newest = _newestVersion();
+  String? newest = await _newestVersion();
   if (newest == null) {
     print(
       '\x1B[31mCould not read the Dox versions from pub.dev. '
       'Check your network and try again.\x1B[0m',
     );
+    exitCode = 1;
     return;
   }
   Process process = await Process.start('dart', [
@@ -28,14 +30,11 @@ Future<void> updateDox() async {
   exitCode = await process.exitCode;
 }
 
-String? _newestVersion() {
-  ProcessResult result = Process.runSync('curl', [
-    'https://pub.dev/api/packages/dox',
-    '-s',
-  ]);
-  if (result.exitCode != 0) return null;
+Future<String?> _newestVersion() async {
+  String? body = await httpGet('https://pub.dev/api/packages/dox');
+  if (body == null) return null;
   try {
-    return newestOfMajor(pubVersions(result.stdout as String), version);
+    return newestOfMajor(pubVersions(body), version);
   } catch (_) {
     return null;
   }

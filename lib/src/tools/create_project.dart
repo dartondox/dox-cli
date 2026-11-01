@@ -26,6 +26,7 @@ Future<bool> createProject(String projectName, [String? versionName]) async {
 
   if (projectFolder.existsSync()) {
     print('\x1B[31mFolder name "$projectName" already exist\x1B[0m');
+    exitCode = 1;
     return false;
   }
 
@@ -33,12 +34,13 @@ Future<bool> createProject(String projectName, [String? versionName]) async {
   print("\x1B[32m✔\x1B[0m Creating...");
 
   /// use version name if provided, else the newest template for this CLI
-  String? latestTag = versionName ?? _latestTemplate();
+  String? latestTag = versionName ?? await _latestTemplate();
   if (latestTag == null) {
     print(
       '\x1B[31mCould not find a template release for Dox $version. '
       'Check your network, or pass --version.\x1B[0m',
     );
+    exitCode = 1;
     return false;
   }
 
@@ -48,22 +50,28 @@ Future<bool> createProject(String projectName, [String? versionName]) async {
 
   print("\x1B[32m✔\x1B[0m Version : $latestTag");
 
-  ProcessResult result = Process.runSync('git', [
-    'clone',
-    '--depth',
-    '1',
-    '--branch',
-    latestTag,
-    '--',
-    'https://github.com/dartondox/dox-sample.git',
-    projectName,
-  ]);
+  ProcessResult result;
+  try {
+    result = Process.runSync('git', [
+      'clone',
+      '--depth',
+      '1',
+      '--branch',
+      latestTag,
+      '--',
+      'https://github.com/dartondox/dox-sample.git',
+      projectName,
+    ]);
+  } on ProcessException {
+    print('\x1B[31mCould not run git. Install git and try again.\x1B[0m');
+    exitCode = 1;
+    return false;
+  }
 
-  if (result.stderr != null) {
-    if (result.stderr.toString().contains('Could not find')) {
-      print('\x1B[31m${result.stderr}\x1B[0m');
-      return false;
-    }
+  if (result.exitCode != 0) {
+    print('\x1B[31mgit clone failed:\n${result.stderr}\x1B[0m');
+    exitCode = 1;
+    return false;
   }
 
   Directory gitDirectory = Directory('${projectFolder.path}/.git');
@@ -122,15 +130,14 @@ void replaceProjectName(Directory folder, String projectName) {
 ///
 /// GitHub's `releases/latest` skips pre-releases, so it can give a
 /// template of an older major version. This reads the release list instead.
-String? _latestTemplate() {
-  ProcessResult result = Process.runSync('curl', [
+Future<String?> _latestTemplate() async {
+  String? body = await httpGet(
     'https://api.github.com/repos/dartondox/dox-sample/releases?per_page=100',
-    '-s',
-  ]);
-  if (result.exitCode != 0) return null;
+  );
+  if (body == null) return null;
   List<String> tags = <String>[];
   try {
-    List<dynamic> releases = jsonDecode(result.stdout);
+    List<dynamic> releases = jsonDecode(body);
     for (final release in releases) {
       tags.add((release['tag_name'] as String).replaceFirst('v', ''));
     }
