@@ -71,7 +71,7 @@ class CommandRegistry {
         final flag = args.length >= 2 ? args[1] : null;
         bool isVersionFlag = flag == '--version' || flag == '--v';
         final version = args.length >= 3 && isVersionFlag ? args[2] : null;
-        createProject(projectName, version);
+        await createProject(projectName, version);
       },
     ),
 
@@ -142,7 +142,7 @@ class CommandRegistry {
       description: 'Run build runner once',
       category: CommandCategory.buildRunner,
       function: (args) async {
-        buildBuilder();
+        exitCode = await buildBuilder();
       },
     ),
 

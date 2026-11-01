@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 String pascalToSnake(String input) {
@@ -19,6 +20,24 @@ String pascalToSnake(String input) {
       ? finalString.substring(0, finalString.length - 1)
       : finalString;
   return finalString;
+}
+
+/// The snake_case file name for a `make:*` name, or null when it is not safe.
+///
+/// [suffix] (eg. `controller`) is removed from the end. The result must be
+/// a plain Dart name: lowercase letters, digits and `_`, starting with a
+/// letter. So it is one path part, and names like `../x`, `/tmp/x` or
+/// `a/b` can not write a file outside the target folder.
+String? generatorName(String input, [String suffix = '']) {
+  String name = pascalToSnake(input);
+  if (suffix.isNotEmpty) name = name.replaceAll(RegExp('_?$suffix\$'), '');
+  if (RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(name)) return name;
+  print(
+    '\x1B[31m"$input" is not a valid name. '
+    'Use letters, digits and _ only, and start with a letter.\x1B[0m',
+  );
+  exitCode = 1;
+  return null;
 }
 
 String snakeToPascal(String input) {
@@ -51,4 +70,20 @@ String _formatNumber(int number) {
 
 String fileGetContents(String path) {
   return File(path).readAsStringSync();
+}
+
+/// GETs [url] and returns the body. Returns null on a network error or a
+/// status that is not 200.
+Future<String?> httpGet(String url) async {
+  HttpClient client = HttpClient();
+  try {
+    HttpClientRequest request = await client.getUrl(Uri.parse(url));
+    HttpClientResponse response = await request.close();
+    String body = await response.transform(utf8.decoder).join();
+    return response.statusCode == 200 ? body : null;
+  } on IOException {
+    return null;
+  } finally {
+    client.close();
+  }
 }

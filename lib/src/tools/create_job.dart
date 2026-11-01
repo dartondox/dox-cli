@@ -42,7 +42,8 @@ Future<void> main(List<String> args) async {
 /// `lib/app/jobs/send_welcome_email.job.dart`, and `bin/queue.dart` when
 /// it is missing.
 bool createJob(String name) {
-  String filename = pascalToSnake(name).replaceAll(RegExp(r'_?job$'), '');
+  String? filename = generatorName(name, 'job');
+  if (filename == null) return false;
   String className = snakeToPascal(filename);
   String? package = appPackageName();
   if (package == null) {

@@ -24,7 +24,9 @@ class $className {
 /// `dox make:dto CreateBlog` makes
 /// `lib/app/dtos/create_blog/create_blog.dto.dart`.
 bool createDto(String filename) {
-  filename = pascalToSnake(filename).replaceAll(RegExp(r'_?dto$'), '');
+  String? name = generatorName(filename, 'dto');
+  if (name == null) return false;
+  filename = name;
   String className = snakeToPascal(filename);
   String path = '${Directory.current.path}/lib/app/dtos/$filename/';
   String dtoName = '$filename.dto';

@@ -8,6 +8,20 @@ void main() {
     expect(buildRunnerBuildArgs, <String>['run', 'build_runner', 'build']);
   });
 
+  test(
+    'dox build_runner:build exits with the build_runner exit code',
+    () async {
+      // no pubspec.yaml, so build_runner fails
+      Directory app = Directory.systemTemp.createTempSync('dox_build_');
+      addTearDown(() => app.deleteSync(recursive: true));
+      ProcessResult r = await Process.run(Platform.resolvedExecutable, <String>[
+        '${Directory.current.path}/bin/dox.dart',
+        'build_runner:build',
+      ], workingDirectory: app.path);
+      expect(r.exitCode, isNot(0), reason: '${r.stdout}${r.stderr}');
+    },
+  );
+
   test('dox build leaves SQLite files out of the bundle', () {
     expect(isSqliteFile('db/dox.sqlite'), isTrue);
     expect(isSqliteFile('db/dox.sqlite-wal'), isTrue);

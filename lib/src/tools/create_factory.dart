@@ -31,7 +31,8 @@ class ${className}Factory extends Factory<$className> {
 
 /// `dox make:factory User` makes `db/factories/user.factory.dart`
 bool createFactory(String name) {
-  String filename = pascalToSnake(name).replaceAll(RegExp(r'_?factory$'), '');
+  String? filename = generatorName(name, 'factory');
+  if (filename == null) return false;
   String className = snakeToPascal(filename);
   String? package = appPackageName();
   if (package == null) {

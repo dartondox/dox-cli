@@ -20,7 +20,9 @@ class ${className}Serializer extends Serializer<$className> {
 }
 
 bool createSerializer(String filename) {
-  filename = pascalToSnake(filename).replaceAll(RegExp(r'_?serializer$'), '');
+  String? name = generatorName(filename, 'serializer');
+  if (name == null) return false;
+  filename = name;
   String className = snakeToPascal(filename);
   String path = '${Directory.current.path}/lib/app/http/serializers/';
   String serializerName = '$filename.serializer';

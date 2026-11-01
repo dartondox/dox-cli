@@ -53,10 +53,10 @@ Future<void> serverServe() async {
 
     timer = Timer(Duration(milliseconds: 500), () async {
       process?.kill();
-      int? exitCode = await process?.exitCode;
-      if (exitCode.toString().isNotEmpty) {
-        process = await _startServer();
-      }
+      // start the new server only after the old one is gone, so the port
+      // is free. The exit code does not matter.
+      await process?.exitCode;
+      process = await _startServer();
     });
   });
 }
@@ -110,22 +110,9 @@ const List<String> buildRunnerBuildArgs = <String>[
   'build',
 ];
 
-Future<void> buildBuilder() async {
-  var process = await Process.start('dart', buildRunnerBuildArgs);
-  process.stdout.transform(utf8.decoder).listen((data) {
-    List lines = data.split("\n");
-    print(lines.first.toString().replaceAll('INFO', 'Dox'));
-  });
-
-  process.stderr.transform(utf8.decoder).listen((data) {
-    List lines = data.split("\n");
-    for (String line in lines) {
-      if (line.isNotEmpty) {
-        print(line);
-      }
-    }
-  });
-}
+/// `dox build_runner:build`. Shows all build_runner output and returns
+/// its exit code.
+Future<int> buildBuilder() => _run('dart', buildRunnerBuildArgs);
 
 /// AOT compile the app for production.
 ///
