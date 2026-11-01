@@ -20,7 +20,9 @@ class $className extends ${className}Generator {
 /// [table] sets `@DoxModel(table: ...)`, so the model uses that table
 /// (`make:model X -m` makes the plural table, the model default is singular).
 bool createModel(String filename, {String? table}) {
-  filename = pascalToSnake(filename);
+  String? name = generatorName(filename);
+  if (name == null) return false;
+  filename = name;
   String className = snakeToPascal(filename);
   String path = '${Directory.current.path}/lib/app/models/$filename/';
   final file = File('$path$filename.model.dart');

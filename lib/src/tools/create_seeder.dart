@@ -28,7 +28,8 @@ class ${className}Seeder extends Seeder {
 /// updates `db/seeders/seeders.dart` and makes `bin/seed.dart` when it
 /// is missing
 bool createSeeder(String name) {
-  String filename = pascalToSnake(name).replaceAll(RegExp(r'_?seeder$'), '');
+  String? filename = generatorName(name, 'seeder');
+  if (filename == null) return false;
   String className = snakeToPascal(filename);
   String seederName = '$filename.seeder';
   File file = File('${seederDirectory().path}/$seederName.dart');

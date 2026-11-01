@@ -6,9 +6,12 @@ import 'package:dox/src/tools/create_middleware.dart';
 import 'package:dox/src/tools/create_model.dart';
 import 'package:dox/src/tools/create_dto.dart';
 import 'package:dox/src/tools/create_factory.dart';
+import 'package:dox/src/tools/create_job.dart';
 import 'package:dox/src/tools/create_seeder.dart';
 import 'package:dox/src/tools/create_serializer.dart';
 import 'package:dox/src/types.dart';
+import 'package:dox/src/utils/utils.dart';
+import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
 
 /// Generators write relative to the current directory,
@@ -429,6 +432,61 @@ void main() {
             .existsSync(),
         isTrue,
       );
+    });
+  });
+
+  group('generators | unsafe names', () {
+    Map<String, bool Function(String)> generators =
+        <String, bool Function(String)>{
+          'controller': (String n) => createController(n, false),
+          'middleware': createMiddleware,
+          'model': createModel,
+          'dto': createDto,
+          'serializer': createSerializer,
+          'factory': createFactory,
+          'seeder': createSeeder,
+          'job': createJob,
+        };
+    List<String> names = <String>[
+      '../../../../escape',
+      '..',
+      '/tmp/escape',
+      'admin/User',
+      r'a\b',
+      'bad name',
+      '1user',
+      '',
+    ];
+
+    for (MapEntry<String, bool Function(String)> g in generators.entries) {
+      test('${g.key} rejects names that are not plain Dart names', () {
+        File('pubspec.yaml').writeAsStringSync('name: my_app\n');
+        for (String name in names) {
+          expect(g.value(name), isFalse, reason: name);
+          expect(exitCode, 1, reason: name);
+          exitCode = 0;
+        }
+        List<String> made = tempDir
+            .listSync(recursive: true)
+            .map((FileSystemEntity e) => e.path)
+            .toList();
+        expect(made, <String>['${tempDir.path}/pubspec.yaml']);
+        // `../../../../escape` would land next to the temp dir
+        expect(
+          tempDir.parent.listSync().where(
+            (FileSystemEntity e) => path.basename(e.path).startsWith('escape'),
+          ),
+          isEmpty,
+        );
+      });
+    }
+
+    test('generatorName keeps good names', () {
+      expect(generatorName('BlogPostController', 'controller'), 'blog_post');
+      expect(generatorName('user_2'), 'user_2');
+      expect(generatorName('../x'), isNull);
+      expect(generatorName('Controller', 'controller'), isNull);
+      exitCode = 0;
     });
   });
 }

@@ -50,7 +50,9 @@ class ${className}Controller {
 }
 
 bool createController(String filename, bool resource) {
-  filename = pascalToSnake(filename).replaceAll(RegExp(r'_?controller$'), '');
+  String? name = generatorName(filename, 'controller');
+  if (name == null) return false;
+  filename = name;
   String className = snakeToPascal(filename);
   String path = '${Directory.current.path}/lib/app/http/controllers/';
   String controllerName = '$filename.controller';
