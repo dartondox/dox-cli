@@ -24,15 +24,29 @@ String createMigration(String name, {bool sql = false}) {
   file.writeAsStringSync(sql ? _sampleSql : dartMigrationSource(snake));
   if (!sql) {
     writeMigrationRegistry();
-    File entry = migrateEntryFile();
-    if (!entry.existsSync()) {
-      entry.createSync(recursive: true);
-      entry.writeAsStringSync(migrateEntrySource);
-      print('\x1B[32mbin/migrate.dart created.\x1B[0m');
-    }
+    _writeMigrateEntry();
   }
   print('\x1B[32m$fileName migration created successfully.\x1B[0m');
   return file.path;
+}
+
+/// after a package command: when db/migration has Dart migrations,
+/// make `db/migration/migrations.dart` again, and `bin/migrate.dart`
+/// when it is missing. So a migration that a package command wrote
+/// (like `dox queue:table`) runs with `dox migrate`.
+void refreshMigrationFiles() {
+  if (!hasDartMigrations()) return;
+  writeMigrationRegistry();
+  _writeMigrateEntry();
+}
+
+/// make `bin/migrate.dart` when it is missing
+void _writeMigrateEntry() {
+  File entry = migrateEntryFile();
+  if (entry.existsSync()) return;
+  entry.createSync(recursive: true);
+  entry.writeAsStringSync(migrateEntrySource);
+  print('\x1B[32mbin/migrate.dart created.\x1B[0m');
 }
 
 final RegExp _stamp = RegExp(

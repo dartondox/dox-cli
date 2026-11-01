@@ -281,9 +281,9 @@ class CommandRegistry {
       maxArgs: 1,
       function: (args) async {
         if (args.isNotEmpty) {
-          helpCommand(args[0]);
+          await helpCommand(args[0]);
         } else {
-          help();
+          await help();
         }
       },
     ),

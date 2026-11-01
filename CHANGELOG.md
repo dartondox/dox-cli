@@ -1,3 +1,12 @@
+## Unreleased
+
+- New: package commands. A package (or the app) adds `dox` commands with the `dox: commands:` key in its pubspec.yaml, like `dox: {commands: package:dox_queue/commands.dart}`. `dox <name>` finds them when the name is not a built-in command. It reads `.dart_tool/package_config.json`, writes `.dart_tool/dox/commands.dart`, and runs it with `dart run`. The exit code of the command is the exit code of `dox`. The file is written again only when package_config.json or pubspec.yaml change.
+- A built-in command always wins. Two packages with the same command name print an error (exit code 1). A bad `dox: commands:` key prints a warning, and the other packages still work.
+- `dox help` lists the package commands, one group per package. `dox help <name>` shows one package command. Outside an app, or when no package has commands, it does not start Dart.
+- An unknown command now also prints a hint about the `dox: commands:` key.
+- After a package command, `dox` writes `db/migration/migrations.dart` again and makes `bin/migrate.dart` when it is missing. So a migration that a command wrote (like `dox queue:table`) runs with `dox migrate`.
+- Now depends on `crypto` and `yaml` directly (they were already used through other packages).
+
 ## 3.0.1
 
 - Fix: when only `dox serve` got SIGTERM or SIGINT (eg. `kill <pid>` from a script), the server and `build_runner watch` it started kept running and held the port. Now dox stops them first, waits up to 5 seconds, then exits. Ctrl+C in a terminal already worked.

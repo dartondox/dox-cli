@@ -6,11 +6,7 @@ import 'dart:io';
 /// SIGINT and SIGTERM are sent on to the child, so a long job like
 /// `queue:work` can stop by itself. Returns the exit code of the child.
 Future<int> runScript(String script, List<String> args) async {
-  String exe = Platform.resolvedExecutable;
-  String dart = exe.split(Platform.pathSeparator).last.startsWith('dart')
-      ? exe
-      : 'dart';
-  Process process = await Process.start(dart, <String>[
+  Process process = await Process.start(dartExecutable(), <String>[
     'run',
     script,
     ...args,
@@ -36,4 +32,13 @@ Future<int> runScript(String script, List<String> args) async {
     await subscription.cancel();
   }
   return code;
+}
+
+/// the `dart` that runs this CLI, or `dart` from PATH when it runs as an
+/// AOT snapshot
+String dartExecutable() {
+  String exe = Platform.resolvedExecutable;
+  return exe.split(Platform.pathSeparator).last.startsWith('dart')
+      ? exe
+      : 'dart';
 }

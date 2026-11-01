@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:dox/src/command_registry.dart';
+import 'package:dox/src/tools/create_migration.dart';
+import 'package:dox/src/tools/package_commands.dart';
 
 void main(List<String> args) async {
   if (args.isEmpty) {
@@ -19,10 +23,17 @@ void main(List<String> args) async {
 Future<void> _executeCommand(String command, List<String> args) async {
   final commandDefinition = CommandRegistry.findCommand(command);
 
+  /// not built in: a command of a package or of the app
   if (commandDefinition == null) {
-    print(
-      'Could not find a command named "$command". Run `dox help` for more information.',
-    );
+    int? code = await PackageCommands().run(command, args);
+    if (code == null) {
+      print(notFoundMessage(command));
+    } else if (code != 0) {
+      exitCode = code;
+    } else {
+      /// a command like `queue:table` can add a migration
+      refreshMigrationFiles();
+    }
     return;
   }
 
