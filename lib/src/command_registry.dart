@@ -142,7 +142,7 @@ class CommandRegistry {
       description: 'Run build runner once',
       category: CommandCategory.buildRunner,
       function: (args) async {
-        buildBuilder();
+        exitCode = await buildBuilder();
       },
     ),
 
