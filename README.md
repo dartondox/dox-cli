@@ -24,9 +24,10 @@ If your shell can not find `dox`, add `$HOME/.pub-cache/bin` to your `PATH`.
 dox create my_app            # a new project from the starter template
 cd my_app
 dart pub get
-cp .env.example .env
 dox s                        # dev server, restarts when a file changes
 ```
+
+`dox create` also makes the `.env` file with a new `APP_KEY`. Do not copy `.env.example` over it, or you lose that key.
 
 ## Commands
 
