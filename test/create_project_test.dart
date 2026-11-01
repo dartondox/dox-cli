@@ -36,4 +36,27 @@ void main() {
     expect(lines[1], matches(RegExp(r'^APP_KEY=[A-Za-z0-9]{32}$')));
     expect(lines[2], 'APP_PORT=3000');
   });
+
+  test('createProject rejects names that are not Dart package names', () async {
+    Directory original = Directory.current;
+    Directory dir = Directory.systemTemp.createTempSync('dox_create_');
+    Directory.current = dir;
+    addTearDown(() {
+      Directory.current = original;
+      dir.deleteSync(recursive: true);
+    });
+    // a version is given, so no network call happens before the check
+    for (String name in <String>[
+      '-x',
+      '--upload-pack=touch pwned',
+      '../app',
+      '1app',
+      'my-app',
+    ]) {
+      expect(await createProject(name, '3.0.0'), isFalse, reason: name);
+      expect(exitCode, 1, reason: name);
+      exitCode = 0;
+    }
+    expect(dir.listSync(), isEmpty);
+  });
 }

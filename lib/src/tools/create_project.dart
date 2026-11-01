@@ -6,14 +6,27 @@ import 'package:dox/src/tools/generate_key.dart';
 import 'package:dox/src/utils/versions.dart';
 import 'package:dox/src/version.dart';
 
-Future<void> createProject(String projectName, [String? versionName]) async {
+/// `dox create <name>`. Returns false when the project was not made.
+Future<bool> createProject(String projectName, [String? versionName]) async {
+  String input = projectName;
   projectName = pascalToSnake(projectName);
+
+  /// a Dart package name. It is also passed to `git clone`, so a name that
+  /// starts with `-` must never get there.
+  if (!RegExp(r'^[a-z_][a-z0-9_]*$').hasMatch(projectName)) {
+    print(
+      '\x1B[31m"$input" is not a valid Dart package name. Use lowercase '
+      'letters, digits and _, and do not start with a digit.\x1B[0m',
+    );
+    exitCode = 1;
+    return false;
+  }
 
   final projectFolder = Directory('${Directory.current.path}/$projectName');
 
   if (projectFolder.existsSync()) {
     print('\x1B[31mFolder name "$projectName" already exist\x1B[0m');
-    return;
+    return false;
   }
 
   print("\x1B[32m✔\x1B[0m Project name : $projectName");
@@ -26,7 +39,7 @@ Future<void> createProject(String projectName, [String? versionName]) async {
       '\x1B[31mCould not find a template release for Dox $version. '
       'Check your network, or pass --version.\x1B[0m',
     );
-    return;
+    return false;
   }
 
   /// replace v with empty space if there is v in version and join again v
@@ -41,6 +54,7 @@ Future<void> createProject(String projectName, [String? versionName]) async {
     '1',
     '--branch',
     latestTag,
+    '--',
     'https://github.com/dartondox/dox-sample.git',
     projectName,
   ]);
@@ -48,14 +62,14 @@ Future<void> createProject(String projectName, [String? versionName]) async {
   if (result.stderr != null) {
     if (result.stderr.toString().contains('Could not find')) {
       print('\x1B[31m${result.stderr}\x1B[0m');
-      return;
+      return false;
     }
   }
 
   Directory gitDirectory = Directory('${projectFolder.path}/.git');
 
   if (!gitDirectory.existsSync()) {
-    return;
+    return false;
   }
 
   /// remove `.git` folder
@@ -70,6 +84,7 @@ Future<void> createProject(String projectName, [String? versionName]) async {
   print('    ➢ cd $projectName');
   print('    ➢ dart pub get');
   print('    ➢ dox serve\n');
+  return true;
 }
 
 /// Copies `.env.example` to `.env` in [folder] and sets a new `APP_KEY`.
