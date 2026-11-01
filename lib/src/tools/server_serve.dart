@@ -53,10 +53,10 @@ Future<void> serverServe() async {
 
     timer = Timer(Duration(milliseconds: 500), () async {
       process?.kill();
-      int? exitCode = await process?.exitCode;
-      if (exitCode.toString().isNotEmpty) {
-        process = await _startServer();
-      }
+      // start the new server only after the old one is gone, so the port
+      // is free. The exit code does not matter.
+      await process?.exitCode;
+      process = await _startServer();
     });
   });
 }
