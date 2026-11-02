@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:dox/src/command_registry.dart';
 import 'package:dox/src/utils/confirm_drop.dart';
 import 'package:test/test.dart';
 
@@ -59,5 +62,72 @@ void main() {
         isFalse,
       );
     }
+  });
+
+  group('migration commands', () {
+    late Directory tempDir;
+    late Directory originalCwd;
+    List<bool> forces = <bool>[];
+
+    setUp(() {
+      originalCwd = Directory.current;
+      tempDir = Directory.systemTemp.createTempSync('dox_confirm_test_');
+      Directory.current = tempDir;
+      // a fake bin/migrate.dart that writes the args it got
+      File('bin/migrate.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          "import 'dart:io';\n"
+          "void main(List<String> a) => File('ran').writeAsStringSync(a.join(' '));\n",
+        );
+      forces.clear();
+    });
+
+    tearDown(() {
+      confirmDrop = confirmDropAll;
+      exitCode = 0;
+      Directory.current = originalCwd;
+      tempDir.deleteSync(recursive: true);
+    });
+
+    for (String command in <String>[
+      'migration:rollback',
+      'migration:reset',
+      'migration:refresh',
+      'migration:fresh',
+    ]) {
+      test('$command: a "no" stops before the migration runs', () async {
+        confirmDrop = ({required bool force, String danger = ''}) {
+          forces.add(force);
+          return false;
+        };
+        await CommandRegistry.findCommand(command)!.function(<String>[]);
+        expect(forces, <bool>[false]);
+        expect(exitCode, 1);
+        expect(File('ran').existsSync(), isFalse);
+      });
+    }
+
+    test(
+      'rollback --force: asks with force, does not pass --force on',
+      () async {
+        confirmDrop = ({required bool force, String danger = ''}) {
+          forces.add(force);
+          return true;
+        };
+        await CommandRegistry.findCommand('migration:rollback')!
+            .function(<String>['--force', '--step=2']);
+        expect(forces, <bool>[true]);
+        expect(File('ran').readAsStringSync(), 'rollback --step=2');
+      },
+    );
+
+    test('migrate --force: no question, --force is not passed on', () async {
+      confirmDrop = ({required bool force, String danger = ''}) =>
+          throw StateError('must not ask');
+      await CommandRegistry.findCommand('migrate')!
+          .function(<String>['--force']);
+      expect(File('ran').readAsStringSync(), 'run');
+    });
   });
 }

@@ -3,8 +3,8 @@ import 'dart:io';
 // same .env rules as the Migrator that runs next
 import 'package:dox_migration/env.dart' show loadEnv;
 
-/// Says if `migration:fresh`, `migration:reset` or `migration:refresh`
-/// may drop all tables.
+/// Says if `migration:fresh`, `migration:reset`, `migration:refresh` or
+/// `migration:rollback` may run. [danger] says what the command drops.
 ///
 /// - APP_ENV is not `production`: yes, nothing changes.
 /// - `--force`: yes, no question.
@@ -15,6 +15,7 @@ import 'package:dox_migration/env.dart' show loadEnv;
 /// [env], [terminal] and [ask] are for tests.
 bool confirmDropAll({
   required bool force,
+  String danger = 'This drops all tables.',
   Map<String, String>? env,
   bool? terminal,
   String? Function()? ask,
@@ -24,14 +25,12 @@ bool confirmDropAll({
   terminal ??= stdin.hasTerminal;
   if (!terminal) {
     print(
-      'Warning: APP_ENV is production. This drops all tables. '
+      'Warning: APP_ENV is production. $danger '
       'Use --force to hide this warning.',
     );
     return true;
   }
-  stdout.write(
-    'APP_ENV is production. This drops all tables. Continue? (y/N) ',
-  );
+  stdout.write('APP_ENV is production. $danger Continue? (y/N) ');
   String? answer = ask == null ? stdin.readLineSync() : ask();
   return answer?.trim().toLowerCase() == 'y';
 }

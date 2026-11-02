@@ -167,13 +167,12 @@ void main() {
       );
     });
 
-    test('without -m: no migration, default table', () async {
+    test('without -m: no migration, same plural table', () async {
       await CommandRegistry.findCommand('create:model')!
           .function(<String>['User']);
-      expect(
-        read('lib/app/models/user/user.model.dart'),
-        contains('@DoxModel()'),
-      );
+      String model = read('lib/app/models/user/user.model.dart');
+      expect(model, contains("@DoxModel(table: 'users')"));
+      expect(model, contains('List<String> get fillable => <String>[];'));
       expect(Directory('db').existsSync(), isFalse);
     });
 
@@ -447,6 +446,22 @@ void main() {
             .existsSync(),
         isTrue,
       );
+    });
+
+    test('no command, unknown command and bad args exit with 1', () async {
+      String bin = '${originalCwd.path}/bin/dox.dart';
+      for (List<String> args in <List<String>>[
+        <String>[],
+        <String>['no:such:command'],
+        <String>['make:model'],
+      ]) {
+        ProcessResult r = await Process.run(
+          Platform.resolvedExecutable,
+          <String>['run', bin, ...args],
+          workingDirectory: tempDir.path,
+        );
+        expect(r.exitCode, 1, reason: '$args: ${r.stdout}${r.stderr}');
+      }
     });
   });
 

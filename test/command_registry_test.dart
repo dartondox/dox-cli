@@ -67,7 +67,8 @@ void main() {
       });
       final rollback = CommandRegistry.findCommand('migration:rollback')!;
       expect(rollback.validateArgs(['--step=2']), isTrue);
-      expect(rollback.validateArgs(['--step=2', 'extra']), isFalse);
+      expect(rollback.validateArgs(['--step=2', '--force']), isTrue);
+      expect(rollback.validateArgs(['--step=2', '--force', 'x']), isFalse);
     });
 
     test('should get all commands', () {
@@ -155,7 +156,7 @@ void main() {
       // Check file content
       final content = modelFile.readAsStringSync();
       expect(content, contains('class User extends UserGenerator'));
-      expect(content, contains('@DoxModel()'));
+      expect(content, contains("@DoxModel(table: 'users')"));
     });
 
     test('create:controller should generate controller file', () {
