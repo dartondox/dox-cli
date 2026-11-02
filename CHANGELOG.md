@@ -1,10 +1,14 @@
 ## Unreleased
 
-- New: package commands. A package (or the app) adds `dox` commands with the `dox: commands:` key in its pubspec.yaml, like `dox: {commands: package:dox_queue/commands.dart}`. `dox <name>` finds them when the name is not a built-in command. It reads `.dart_tool/package_config.json`, writes `.dart_tool/dox/commands.dart`, and runs it with `dart run`. The exit code of the command is the exit code of `dox`. The file is written again only when package_config.json or pubspec.yaml change.
+- New: package commands. A package (or the app) adds `dox` commands with the `dox: commands:` key in its pubspec.yaml, like `dox: {commands: package:dox_queue/commands.dart}`. `dox <name>` finds them when the name is not a built-in command. It reads `.dart_tool/package_config.json`, writes `.dart_tool/dox/commands.dart`, and runs it with `dart run`. The exit code of the command is the exit code of `dox`. The file is written again only when package_config.json or a pubspec.yaml change.
 - A built-in command always wins. Two packages with the same command name print an error (exit code 1). A bad `dox: commands:` key prints a warning, and the other packages still work.
 - `dox help` lists the package commands, one group per package. `dox help <name>` shows one package command. Outside an app, or when no package has commands, it does not start Dart.
 - An unknown command now also prints a hint about the `dox: commands:` key.
-- After a package command, `dox` writes `db/migration/migrations.dart` again and makes `bin/migrate.dart` when it is missing. So a migration that a command wrote (like `dox queue:table`) runs with `dox migrate`.
+- `dox migrate` (and the other `migration:*` commands) now makes `bin/migrate.dart` when it is missing and `db/migration` has Dart migrations, then goes on. Before, it stopped with "bin/migrate.dart is missing". So a migration that a package command wrote (like `dox queue:table`) runs with `dox migrate`.
+- The commands are found in an app inside a pub workspace too (`package_config.json` in a folder above the app).
+- The file is also written again when the pubspec.yaml of a path dependency changes, with no `dart pub get`.
+- A `dox: commands:` value must be a plain path like `package:<name>/<path>.dart` (no `..`, no quotes). Else the package is skipped with a warning.
+- When a package command throws, `dox` prints the error and its stack trace, and exits with code 1.
 - Now depends on `crypto` and `yaml` directly (they were already used through other packages).
 
 ## 3.0.1

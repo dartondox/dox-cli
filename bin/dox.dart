@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:dox/src/command_registry.dart';
-import 'package:dox/src/tools/create_migration.dart';
 import 'package:dox/src/tools/package_commands.dart';
 
 void main(List<String> args) async {
@@ -30,9 +29,6 @@ Future<void> _executeCommand(String command, List<String> args) async {
       print(notFoundMessage(command));
     } else if (code != 0) {
       exitCode = code;
-    } else {
-      /// a command like `queue:table` can add a migration
-      refreshMigrationFiles();
     }
     return;
   }

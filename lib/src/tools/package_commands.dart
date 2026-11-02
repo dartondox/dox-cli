@@ -38,17 +38,43 @@ class PackageCommandInfo {
 /// This class reads `.dart_tool/package_config.json` and the pubspec.yaml
 /// of each package, then writes `.dart_tool/dox/commands.dart`. That file
 /// imports the libraries and runs one command. It is written again only
-/// when package_config.json or the app pubspec.yaml change.
+/// when package_config.json, the app pubspec.yaml or the pubspec.yaml of
+/// a path dependency change.
 class PackageCommands {
-  PackageCommands({Directory? root}) : root = root ?? Directory.current;
+  PackageCommands({Directory? root})
+    : root = (root ?? Directory.current).absolute {
+    _config = _findConfig();
+  }
 
   /// the app folder
   final Directory root;
 
+  /// a valid `dox: commands:` value. It goes into Dart source, so only
+  /// plain path characters, and no `..` (checked apart).
+  static final RegExp _libraryValue = RegExp(
+    r'^package:[a-z0-9_]+/[A-Za-z0-9_./-]+\.dart$',
+  );
+
   /// the first line of `--dox-list` output, before the JSON
   static const String listMarker = 'DOX_COMMANDS:';
 
-  File get _config => File('${root.path}/.dart_tool/package_config.json');
+  /// `.dart_tool/package_config.json` of the app, or of the pub
+  /// workspace the app is in (a folder above it)
+  late final File _config;
+
+  File _findConfig() {
+    Directory dir = root;
+    while (true) {
+      File file = File('${dir.path}/.dart_tool/package_config.json');
+      if (file.existsSync()) return file;
+      Directory parent = dir.parent;
+      if (parent.path == dir.path) {
+        return File('${root.path}/.dart_tool/package_config.json');
+      }
+      dir = parent;
+    }
+  }
+
   File get _pubspec => File('${root.path}/pubspec.yaml');
   File get _cache => File('${root.path}/.dart_tool/dox/commands.json');
 
@@ -162,7 +188,9 @@ class PackageCommands {
   /// `package:<package>/....dart` library that is there
   String? _libraryFile(String package, String library, Uri libDir) {
     String prefix = 'package:$package/';
-    if (!library.startsWith(prefix) || !library.endsWith('.dart')) {
+    if (!library.startsWith(prefix) ||
+        !_libraryValue.hasMatch(library) ||
+        library.split('/').contains('..')) {
       _warn(
         'Skip $package: `dox: commands: $library` must be a library of '
         'the package itself, like ${prefix}commands.dart.',
@@ -243,8 +271,9 @@ Future<void> main(List<String> args) async {
   }
   try {
     await found.run(args.sublist(1));
-  } catch (error) {
+  } catch (error, stack) {
     print(error);
+    print(stack);
     if (exitCode == 0) exitCode = 1;
   }
   await stdout.flush();
@@ -314,13 +343,33 @@ Future<void> main(List<String> args) async {
     return null;
   }
 
-  /// changes when package_config.json or the app pubspec.yaml change
+  /// changes when package_config.json, the app pubspec.yaml or the
+  /// pubspec.yaml of a path dependency change. A path dependency has a
+  /// relative `rootUri`. Hosted and git packages are in the pub cache
+  /// and do not change.
   String _key() {
-    return sha1.convert(<int>[
+    List<int> bytes = <int>[
       ..._config.readAsBytesSync(),
       0,
       ..._pubspec.readAsBytesSync(),
-    ]).toString();
+    ];
+    try {
+      dynamic config = jsonDecode(_config.readAsStringSync());
+      Uri configUri = _config.absolute.uri;
+      for (dynamic entry in (config as Map)['packages'] as List) {
+        String rootUri = '${(entry as Map)['rootUri']}';
+        if (Uri.parse(rootUri).hasScheme) continue;
+        if (!rootUri.endsWith('/')) rootUri = '$rootUri/';
+        File pubspec = File.fromUri(
+          configUri.resolve(rootUri).resolve('pubspec.yaml'),
+        );
+        bytes.add(0);
+        if (pubspec.existsSync()) bytes.addAll(pubspec.readAsBytesSync());
+      }
+    } catch (error) {
+      /// discover() prints the problem
+    }
+    return sha1.convert(bytes).toString();
   }
 
   /// [_key], plus the text of each commands library, so `dox help` sees

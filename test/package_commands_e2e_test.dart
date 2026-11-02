@@ -50,6 +50,7 @@ final List<C> commands = <C>[C()];
     app = Directory('${temp.path}/app')..createSync();
     package('hello_pkg', 'hello', r"print('Hello ${args.join(' ')}');");
     package('fail_pkg', 'fail', 'exitCode = 3;');
+    package('throw_pkg', 'boom', "throw StateError('boom failed');");
     package('clash_a', 'same', "print('a');");
     package('clash_b', 'same', "print('b');");
     package('builtin_pkg', 'version', "print('package version');");
@@ -60,6 +61,7 @@ environment:
 dependencies:
   hello_pkg: {path: ../hello_pkg}
   fail_pkg: {path: ../fail_pkg}
+  throw_pkg: {path: ../throw_pkg}
   clash_a: {path: ../clash_a}
   clash_b: {path: ../clash_b}
   builtin_pkg: {path: ../builtin_pkg}
@@ -118,6 +120,59 @@ final List<AppCommand> commands = <AppCommand>[AppCommand()];
   test('passes the exit code through', () async {
     ProcessResult r = await dox(<String>['fail']);
     expect(r.exitCode, 3);
+  });
+
+  test('a thrown error prints the stack trace and exits 1', () async {
+    ProcessResult r = await dox(<String>['boom']);
+    expect(r.stdout, contains('boom failed'));
+    expect(r.stdout, contains('package:throw_pkg/commands.dart'));
+    expect(r.exitCode, 1);
+  });
+
+  test('a package command does not touch the migration files', () async {
+    Directory db = Directory('${app.path}/db/migration')
+      ..createSync(recursive: true);
+    File('${db.path}/2020_01_01_000000_wip.dart').writeAsStringSync('// wip');
+    ProcessResult r = await dox(<String>['hello']);
+    expect(r.exitCode, 0);
+    expect(File('${db.path}/migrations.dart').existsSync(), isFalse);
+    expect(File('${app.path}/bin/migrate.dart').existsSync(), isFalse);
+    Directory('${app.path}/db').deleteSync(recursive: true);
+  });
+
+  test('works in an app inside a pub workspace', () async {
+    Directory ws = Directory('${temp.path}/ws')..createSync();
+    File('${ws.path}/pubspec.yaml').writeAsStringSync('''
+name: ws
+environment:
+  sdk: ^3.6.0
+workspace:
+  - member
+''');
+    Directory member = Directory('${ws.path}/member')..createSync();
+    File('${member.path}/pubspec.yaml').writeAsStringSync('''
+name: member
+environment:
+  sdk: ^3.6.0
+resolution: workspace
+dependencies:
+  hello_pkg: {path: ../../hello_pkg}
+''');
+    ProcessResult get = await Process.run(dartExecutable(), <String>[
+      'pub',
+      'get',
+      '--offline',
+    ], workingDirectory: ws.path);
+    expect(get.exitCode, 0, reason: '${get.stdout}${get.stderr}');
+
+    ProcessResult r = await Process.run(dartExecutable(), <String>[
+      '--packages=$cli/.dart_tool/package_config.json',
+      '$cli/bin/dox.dart',
+      'hello',
+      'ws',
+    ], workingDirectory: member.path);
+    expect(r.stdout, contains('Hello ws'), reason: '${r.stderr}');
+    expect(r.exitCode, 0);
   });
 
   test('two packages with one name print an error', () async {

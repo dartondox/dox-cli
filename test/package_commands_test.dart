@@ -39,8 +39,13 @@ void main() {
     }
   }
 
-  /// package_config.json of the app with the app and [packages]
-  void packageConfig(List<String> packages) {
+  /// package_config.json of the app with the app and [packages].
+  /// [relative] packages are path dependencies (a relative `rootUri`),
+  /// the others look like hosted packages (an absolute `file:` uri).
+  void packageConfig(
+    List<String> packages, {
+    List<String> relative = const <String>[],
+  }) {
     List<Map<String, String>> entries = <Map<String, String>>[
       <String, String>{'name': 'app', 'rootUri': '../', 'packageUri': 'lib/'},
     ];
@@ -48,6 +53,13 @@ void main() {
       entries.add(<String, String>{
         'name': name,
         'rootUri': Directory('${temp.path}/$name').uri.toString(),
+        'packageUri': 'lib/',
+      });
+    }
+    for (String name in relative) {
+      entries.add(<String, String>{
+        'name': name,
+        'rootUri': '../../$name',
         'packageUri': 'lib/',
       });
     }
@@ -173,6 +185,57 @@ void main() {
     expect(PackageCommands(root: app).libraries(), isEmpty);
     package('app', '# changed\n', dir: app);
     expect(PackageCommands(root: app).libraries().keys, <String>['pkg']);
+  });
+
+  test('a path dependency that changes its key is read again', () {
+    package('pkg', '');
+    package('app', '', dir: app);
+    packageConfig(<String>[], relative: <String>['pkg']);
+    expect(PackageCommands(root: app).libraries(), isEmpty);
+
+    /// no `dart pub get`: package_config.json is the same
+    package(
+      'pkg',
+      withKey,
+      lib: <String, String>{'commands.dart': 'var commands = [];'},
+    );
+    expect(PackageCommands(root: app).libraries().keys, <String>['pkg']);
+  });
+
+  test('a value that is not a plain library path is skipped', () {
+    package(
+      'pkg',
+      "dox:\n  commands: \"package:pkg/a'b.dart\"\n",
+      lib: <String, String>{"a'b.dart": ''},
+    );
+    package(
+      'up',
+      'dox:\n  commands: package:up/../up/lib/commands.dart\n',
+      lib: <String, String>{'commands.dart': ''},
+    );
+    package('app', '', dir: app);
+    packageConfig(<String>['pkg', 'up']);
+
+    StringBuffer out = StringBuffer();
+    expect(capture(() => PackageCommands(root: app).libraries(), out), isEmpty);
+    expect(out.toString(), contains('Skip pkg'));
+    expect(out.toString(), contains('Skip up'));
+  });
+
+  test('finds package_config.json of a pub workspace above the app', () {
+    package(
+      'pkg',
+      withKey,
+      lib: <String, String>{'commands.dart': 'var commands = [];'},
+    );
+    Directory member = Directory('${app.path}/member')..createSync();
+    package('member', '', dir: member);
+    packageConfig(<String>['pkg']);
+
+    PackageCommands commands = PackageCommands(root: member);
+    expect(commands.inApp, isTrue);
+    expect(commands.libraries().keys, <String>['pkg']);
+    expect(commands.runner.path, startsWith(member.path));
   });
 
   test('the not found message has a hint', () {
