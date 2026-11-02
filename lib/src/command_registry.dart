@@ -117,6 +117,14 @@ class CommandRegistry {
       minArgs: 0,
       maxArgs: 1,
       function: (args) async {
+        if (args.isNotEmpty && args[0] != '--ignore-build-runner') {
+          // the app reads the port from APP_PORT, not from a dox flag
+          print(
+            '\x1B[33mWarning: ${args[0]} is not a serve option, it is ignored. '
+            'To set the port, set APP_PORT in .env '
+            '(or run APP_PORT=8080 dox serve).\x1B[0m',
+          );
+        }
         if (args.isNotEmpty && args[0] == '--ignore-build-runner') {
           serverServe();
         } else {
