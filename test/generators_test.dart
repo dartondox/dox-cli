@@ -463,6 +463,20 @@ void main() {
         expect(r.exitCode, 1, reason: '$args: ${r.stdout}${r.stderr}');
       }
     });
+
+    test('a command that throws exits with 1', () async {
+      // key:generate with no .env: reading the file throws
+      String bin = '${originalCwd.path}/bin/dox.dart';
+      ProcessResult r = await Process.run(
+        Platform.resolvedExecutable,
+        <String>['run', bin, 'key:generate'],
+        workingDirectory: tempDir.path,
+        environment: <String, String>{'APP_ENV': 'development'},
+      );
+      expect(r.exitCode, 1, reason: '${r.stdout}${r.stderr}');
+      expect('${r.stdout}', contains('.env'));
+      expect(File('${tempDir.path}/.env').existsSync(), isFalse);
+    });
   });
 
   group('generators | unsafe names', () {

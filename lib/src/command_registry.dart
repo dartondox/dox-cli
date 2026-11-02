@@ -118,12 +118,7 @@ class CommandRegistry {
       maxArgs: 1,
       function: (args) async {
         if (args.isNotEmpty && args[0] != '--ignore-build-runner') {
-          // the app reads the port from APP_PORT, not from a dox flag
-          print(
-            '\x1B[33mWarning: ${args[0]} is not a serve option, it is ignored. '
-            'To set the port, set APP_PORT in .env '
-            '(or run APP_PORT=8080 dox serve).\x1B[0m',
-          );
+          print(serveOptionWarning(args[0]));
         }
         if (args.isNotEmpty && args[0] == '--ignore-build-runner') {
           serverServe();
@@ -237,11 +232,13 @@ class CommandRegistry {
     // Key generation command
     CommandDefinition(
       command: 'key:generate',
-      helpInfo: 'key:generate',
-      description: 'Generate application key',
+      helpInfo: 'key:generate [--show] [--force]',
+      description:
+          'Generate application key (--show prints one and writes nothing)',
       category: CommandCategory.generation,
       function: (args) async {
-        generateKey();
+        int code = generateKey(args);
+        if (code != 0) exitCode = code;
       },
     ),
 
@@ -316,23 +313,38 @@ class CommandRegistry {
           'Rollback the last batch, or the last <count> migrations with --step',
       category: CommandCategory.database,
       aliases: ['migrate:rollback'],
-      maxArgs: 2,
+      maxArgs: 3,
       function: (args) async {
         int? step;
-        for (String arg in args) {
+        for (int i = 0; i < args.length; i++) {
+          String arg = args[i];
           if (arg == '--force') continue;
-          step = arg.startsWith('--step=')
-              ? int.tryParse(arg.substring(7))
-              : null;
-          if (step == null || step < 1) {
+          String? value;
+          if (arg.startsWith('--step=')) {
+            value = arg.substring(7);
+          } else if (arg == '--step' && i + 1 < args.length) {
+            // `--step 2`, with a space
+            value = args[++i];
+          }
+          int? count = value == null ? null : int.tryParse(value);
+          if (count == null || count < 1) {
             print('Invalid option $arg, use --step=<count> or --force');
             exitCode = 1;
             return;
           }
+          if (step != null) {
+            print('--step is given more than once. Give it once.');
+            exitCode = 1;
+            return;
+          }
+          step = count;
         }
         await _migration(
           'rollback',
-          args,
+          <String>[
+            if (args.contains('--force')) '--force',
+            if (step != null) '--step=$step',
+          ],
           () => Migrator().rollback(step: step),
           danger: 'This rolls back migrations, so it can drop tables and data.',
         );

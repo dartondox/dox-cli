@@ -20,6 +20,10 @@
 - `dox serve --port=8080` (or any other unknown option) was ignored with no message. Now it prints a warning that says to set `APP_PORT` in `.env` (or run `APP_PORT=8080 dox serve`). The server still starts, as before.
 - Safety: `dox migration:rollback` now has the same production check as `migration:fresh`. When `APP_ENV=production` and stdin is a terminal, it asks first. `--force` skips the question, like `migration:rollback --step=2 --force`.
 - `dox migrate --force` (and the other `migration:*` commands without the check) still takes `--force` with no error. It does nothing there and is not passed on to `bin/migrate.dart`.
+- Safety: `dox key:generate` changes `APP_KEY`, which logs out every user. When `APP_ENV=production` and stdin is a terminal, it now asks first, like `migration:fresh`. Any answer other than `y` stops with exit code 1 and changes nothing. `--force` skips the question. Without a terminal (CI, deploy scripts) it prints a warning and changes the key as before. Outside production it works as before.
+- New: `dox key:generate --show` prints a new key and writes nothing. An unknown option is still ignored, as before, but now it prints a warning.
+- Fix: `dox migration:rollback --step 2` (with a space) was rejected. Now it works, like `--step=2`. `--step` given twice (like `--step=2 --step=3`) used the last value with no message. Now it prints an error and exits with code 1.
+- Fix: the `dox serve` warning for an unknown option always said `APP_PORT=8080`. Now it shows the port of `--port=<number>`, like `APP_PORT=3000` for `--port=3000`. Any other option still shows 8080.
 
 ## 3.0.1
 

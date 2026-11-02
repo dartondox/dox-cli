@@ -68,7 +68,8 @@ void main() {
       final rollback = CommandRegistry.findCommand('migration:rollback')!;
       expect(rollback.validateArgs(['--step=2']), isTrue);
       expect(rollback.validateArgs(['--step=2', '--force']), isTrue);
-      expect(rollback.validateArgs(['--step=2', '--force', 'x']), isFalse);
+      expect(rollback.validateArgs(['--step', '2', '--force']), isTrue);
+      expect(rollback.validateArgs(['--step', '2', '--force', 'x']), isFalse);
     });
 
     test('should get all commands', () {

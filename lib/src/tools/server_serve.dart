@@ -102,6 +102,16 @@ Future<Process> watchBuilder() async {
   return process;
 }
 
+/// The warning for an unknown `dox serve` option. The app reads the port
+/// from APP_PORT, not from a dox flag. The hint shows the port of
+/// `--port=<number>` in [arg], or 8080 for any other option.
+String serveOptionWarning(String arg) {
+  String port = RegExp(r'^--port=(\d+)$').firstMatch(arg)?.group(1) ?? '8080';
+  return '\x1B[33mWarning: $arg is not a serve option, it is ignored. '
+      'To set the port, set APP_PORT in .env '
+      '(or run APP_PORT=$port dox serve).\x1B[0m';
+}
+
 /// `dart run build_runner build`. build_runner removed
 /// `--delete-conflicting-outputs`, so it is not passed.
 const List<String> buildRunnerBuildArgs = <String>[

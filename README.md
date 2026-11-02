@@ -48,7 +48,7 @@ dox s                        # dev server, restarts when a file changes
 | `dox migration:fresh [--seed]` | drop all tables, then run all migrations |
 | `dox make:factory <model>` / `dox make:seeder <name>` | create a model factory or a seeder |
 | `dox db:seed [--class=<name>]` | run the seeders |
-| `dox key:generate` | make a new `APP_KEY` |
+| `dox key:generate` | make a new `APP_KEY` (`--show` prints one and writes nothing; in production it asks first, `--force` skips the question) |
 | `dox env:generate` / `dox env:check` | make or check the typed env class |
 | `dox openapi:generate [dir]` | write `openapi.json` and `openapi.yaml` |
 

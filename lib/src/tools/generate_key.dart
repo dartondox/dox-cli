@@ -1,10 +1,50 @@
 import 'dart:io';
 import 'dart:math';
 
-void generateKey() {
+import 'package:dox/src/utils/confirm_drop.dart';
+
+/// `dox key:generate [--show] [--force]`. Gives the exit code.
+///
+/// - `--show`: print a new key, write nothing.
+/// - APP_ENV is `production`: a new `APP_KEY` logs out every user, so it
+///   uses the same check as `migration:fresh` ([confirmDropAll]). In a
+///   terminal it asks first. With no terminal (deploy scripts) it prints
+///   a warning and goes on, like before. `--force` skips the check.
+/// - else: write a new `APP_KEY` to `.env`, like before.
+///
+/// [env], [terminal], [ask] and [path] (the `.env` file) are for tests.
+int generateKey(
+  List<String> args, {
+  Map<String, String>? env,
+  bool? terminal,
+  String? Function()? ask,
+  String? path,
+}) {
+  for (String arg in args) {
+    // 3.0.x ignored extra words, so scripts that pass one keep working
+    if (arg != '--show' && arg != '--force') {
+      print('Warning: ignoring unknown option $arg (use --show or --force).');
+    }
+  }
   String secret = newKey();
+  if (args.contains('--show')) {
+    print(secret);
+    return 0;
+  }
+  bool go = confirmDropAll(
+    force: args.contains('--force'),
+    danger: 'A new APP_KEY logs out every user.',
+    env: env,
+    terminal: terminal,
+    ask: ask,
+  );
+  if (!go) {
+    print('Stopped. APP_KEY was not changed.');
+    return 1;
+  }
+  overrideKey(secret, path);
   print("\x1B[34m$secret : Key have been updated successfully in .env!\x1B[0m");
-  overrideKey(secret);
+  return 0;
 }
 
 /// A new random key of 32 characters (A-Z, a-z, 0-9).

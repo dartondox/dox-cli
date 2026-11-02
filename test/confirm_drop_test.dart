@@ -122,6 +122,29 @@ void main() {
       },
     );
 
+    test('rollback --step 2 (with a space) works', () async {
+      confirmDrop = ({required bool force, String danger = ''}) => true;
+      await CommandRegistry.findCommand('migration:rollback')!
+          .function(<String>['--step', '2', '--force']);
+      expect(exitCode, 0);
+      expect(File('ran').readAsStringSync(), 'rollback --step=2');
+    });
+
+    test('rollback with --step twice stops with an error', () async {
+      confirmDrop = ({required bool force, String danger = ''}) => true;
+      for (List<String> args in <List<String>>[
+        <String>['--step=2', '--step=3'],
+        <String>['--step', '2', '--step=3'],
+        <String>['--step'],
+        <String>['--step', 'x'],
+      ]) {
+        exitCode = 0;
+        await CommandRegistry.findCommand('migration:rollback')!.function(args);
+        expect(exitCode, 1, reason: '$args');
+        expect(File('ran').existsSync(), isFalse, reason: '$args');
+      }
+    });
+
     test('migrate --force: no question, --force is not passed on', () async {
       confirmDrop = ({required bool force, String danger = ''}) =>
           throw StateError('must not ask');
