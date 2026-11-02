@@ -13,6 +13,7 @@
 - `dox help <name>` says when more than one command has that name.
 - When a package command throws, `dox` prints the error and its stack trace, and exits with code 1.
 - Now depends on `crypto` and `yaml` directly (they were already used through other packages).
+- Safety: `dox migration:fresh`, `migration:reset` and `migration:refresh` drop all tables. When `APP_ENV=production` and stdin is a terminal, they now ask first. Any answer other than `y` stops with exit code 1. `--force` skips the question. Without a terminal (CI, deploy scripts) they print a warning and run as before.
 
 ## 3.0.1
 
