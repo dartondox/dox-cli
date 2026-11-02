@@ -155,7 +155,7 @@ void main() {
       // Check file content
       final content = modelFile.readAsStringSync();
       expect(content, contains('class User extends UserGenerator'));
-      expect(content, contains('@DoxModel()'));
+      expect(content, contains("@DoxModel(table: 'users')"));
     });
 
     test('create:controller should generate controller file', () {

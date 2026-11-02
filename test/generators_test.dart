@@ -167,13 +167,12 @@ void main() {
       );
     });
 
-    test('without -m: no migration, default table', () async {
+    test('without -m: no migration, same plural table', () async {
       await CommandRegistry.findCommand('create:model')!
           .function(<String>['User']);
-      expect(
-        read('lib/app/models/user/user.model.dart'),
-        contains('@DoxModel()'),
-      );
+      String model = read('lib/app/models/user/user.model.dart');
+      expect(model, contains("@DoxModel(table: 'users')"));
+      expect(model, contains('List<String> get fillable => <String>[];'));
       expect(Directory('db').existsSync(), isFalse);
     });
 
