@@ -5,6 +5,7 @@ import 'package:dox/src/tools/generate_key.dart';
 import 'package:test/test.dart';
 
 void main() {
+  final String root = Directory.current.path;
   late Directory dir;
 
   /// the lines that [body] prints
@@ -22,6 +23,16 @@ void main() {
   }
 
   late File env;
+
+  /// run `dox key:generate [args]` in the temp dir
+  Future<ProcessResult> runDox(List<String> args) {
+    return Process.run(
+      Platform.resolvedExecutable,
+      <String>['run', '$root/bin/dox.dart', 'key:generate', ...args],
+      workingDirectory: dir.path,
+      environment: <String, String>{'APP_ENV': 'development'},
+    );
+  }
 
   setUp(() {
     dir = Directory.systemTemp.createTempSync('dox_key_');
@@ -137,18 +148,23 @@ void main() {
       expect(env.readAsStringSync(), 'APP_KEY=old\n');
     });
 
-    test('an unknown option is ignored with a warning, like 3.0.x', () {
-      int? code;
-      List<String> lines = printed(() {
-        code = generateKey(
-          <String>['foo'],
-          env: <String, String>{},
-          path: env.path,
-        );
-      });
-      expect(code, 0);
-      expect(lines, contains(contains('ignoring unknown option foo')));
+    test('an unknown option is ignored with a warning on stderr', () async {
+      env.writeAsStringSync('APP_KEY=old\n');
+      ProcessResult r = await runDox(<String>['foo']);
+      expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
+      expect('${r.stderr}', contains('ignoring unknown option foo'));
+      expect('${r.stdout}', isNot(contains('ignoring')));
       expect(env.readAsStringSync(), isNot('APP_KEY=old\n'));
     });
+
+    test(
+      '--show with an unknown option prints only the key on stdout',
+      () async {
+        ProcessResult r = await runDox(<String>['--show', 'foo']);
+        expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
+        expect('${r.stdout}', matches(RegExp(r'^[A-Za-z0-9]{32}\n$')));
+        expect('${r.stderr}', contains('ignoring unknown option foo'));
+      },
+    );
   });
 }

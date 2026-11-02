@@ -21,6 +21,13 @@ class OutputCapture {
 
 void main() {
   group('CommandRegistry Tests', () {
+    test('key:generate accepts the options and unknown words', () {
+      CommandDefinition command = CommandRegistry.findCommand('key:generate')!;
+      expect(command.validateArgs(<String>[]), isTrue);
+      expect(command.validateArgs(<String>['--show', '--force']), isTrue);
+      expect(command.validateArgs(<String>['foo']), isTrue);
+    });
+
     test('should find existing commands', () {
       final command = CommandRegistry.findCommand('help');
       expect(command, isNotNull);
