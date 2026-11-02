@@ -23,7 +23,10 @@ int generateKey(
   for (String arg in args) {
     // 3.0.x ignored extra words, so scripts that pass one keep working
     if (arg != '--show' && arg != '--force') {
-      print('Warning: ignoring unknown option $arg (use --show or --force).');
+      // stderr, so `KEY=$(dox key:generate --show foo)` gets only the key
+      stderr.writeln(
+        'Warning: ignoring unknown option $arg (use --show or --force).',
+      );
     }
   }
   String secret = newKey();
