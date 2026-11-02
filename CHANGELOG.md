@@ -18,6 +18,8 @@
 - Fix: `dox make:model Post` wrote `@DoxModel()`, so the ORM read the table `post`. But `make:model Post -m` makes the table `posts`. Now the model always gets the same plural table: `@DoxModel(table: 'posts')`.
 - The `make:model` stub now has an empty `fillable` list with a comment. A model is guarded by default, so `create(req.body)` throws `MassAssignmentException` until you list the columns there.
 - `dox serve --port=8080` (or any other unknown option) was ignored with no message. Now it prints a warning that says to set `APP_PORT` in `.env` (or run `APP_PORT=8080 dox serve`). The server still starts, as before.
+- Safety: `dox migration:rollback` now has the same production check as `migration:fresh`. When `APP_ENV=production` and stdin is a terminal, it asks first. `--force` skips the question, like `migration:rollback --step=2 --force`.
+- `dox migrate --force` (and the other `migration:*` commands without the check) still takes `--force` with no error. It does nothing there and is not passed on to `bin/migrate.dart`.
 
 ## 3.0.1
 

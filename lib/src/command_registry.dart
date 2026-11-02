@@ -311,18 +311,21 @@ class CommandRegistry {
 
     CommandDefinition(
       command: 'migration:rollback',
-      helpInfo: 'migration:rollback [--step=<count>]',
+      helpInfo: 'migration:rollback [--step=<count>] [--force]',
       description:
           'Rollback the last batch, or the last <count> migrations with --step',
       category: CommandCategory.database,
       aliases: ['migrate:rollback'],
-      maxArgs: 1,
+      maxArgs: 2,
       function: (args) async {
         int? step;
-        if (args.isNotEmpty) {
-          step = int.tryParse(args[0].replaceFirst('--step=', ''));
-          if (step == null || step < 1 || !args[0].startsWith('--step=')) {
-            print('Invalid option ${args[0]}, use --step=<count>');
+        for (String arg in args) {
+          if (arg == '--force') continue;
+          step = arg.startsWith('--step=')
+              ? int.tryParse(arg.substring(7))
+              : null;
+          if (step == null || step < 1) {
+            print('Invalid option $arg, use --step=<count> or --force');
             exitCode = 1;
             return;
           }
@@ -331,6 +334,7 @@ class CommandRegistry {
           'rollback',
           args,
           () => Migrator().rollback(step: step),
+          danger: 'This rolls back migrations, so it can drop tables and data.',
         );
       },
     ),
@@ -346,7 +350,7 @@ class CommandRegistry {
           'reset',
           args,
           () => Migrator().reset(),
-          dropsAll: true,
+          danger: 'This drops all tables.',
         );
       },
     ),
@@ -362,7 +366,7 @@ class CommandRegistry {
           'refresh',
           args,
           () => Migrator().refresh(),
-          dropsAll: true,
+          danger: 'This drops all tables.',
         );
       },
     ),
@@ -378,7 +382,7 @@ class CommandRegistry {
           'fresh',
           args,
           () => Migrator().fresh(),
-          dropsAll: true,
+          danger: 'This drops all tables.',
         );
       },
     ),
@@ -582,6 +586,11 @@ class CommandRegistry {
   }
 }
 
+/// The production check before a migration command that can drop data.
+/// Tests replace it.
+bool Function({required bool force, String danger}) confirmDrop =
+    confirmDropAll;
+
 /// run a migration command.
 /// - with `bin/migrate.dart` (Dart migrations): make the registry again,
 ///   then run `dart run bin/migrate.dart <command>`, so the app code runs.
@@ -589,18 +598,19 @@ class CommandRegistry {
 /// `--seed` in [args] runs the seeders after it, see [_seed].
 /// print the error and set exit code 1 when it fails,
 /// so scripts and CI see the failure.
-/// [dropsAll]: the command drops all tables, so check [confirmDropAll]
-/// first. `--force` skips the question.
+/// [danger]: the command can drop data, so check [confirmDrop] first.
+/// `--force` skips the question. `--force` is never passed on, also not
+/// for a command without [danger] (like `dox migrate --force`).
 Future<void> _migration(
   String command,
   List<String> args,
   Future<void> Function() direct, {
-  bool dropsAll = false,
+  String? danger,
 }) async {
   bool seed = args.contains('--seed');
   bool force = args.contains('--force');
   args = args.where((String a) => a != '--seed' && a != '--force').toList();
-  if (dropsAll && !confirmDropAll(force: force)) {
+  if (danger != null && !confirmDrop(force: force, danger: danger)) {
     print('Stopped. No table was dropped.');
     exitCode = 1;
     return;
