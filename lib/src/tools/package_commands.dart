@@ -119,6 +119,7 @@ class PackageCommands {
     if (cache['key'] == key &&
         cache['libraries'] is Map &&
         cache['files'] is Map &&
+        _allExist(cache['files'] as Map) &&
         (runner.existsSync() || (cache['libraries'] as Map).isEmpty)) {
       _files = Map<String, String>.from(cache['files'] as Map);
       _cacheKey = key;
@@ -145,6 +146,52 @@ class PackageCommands {
     return libs;
   }
 
+  /// true when every commands library file is still there. A removed
+  /// file would break the runner of every package, so then [libraries]
+  /// looks again (and skips that package with a warning).
+  bool _allExist(Map<dynamic, dynamic> files) {
+    for (dynamic path in files.values) {
+      if (!File('$path').existsSync()) return false;
+    }
+    return true;
+  }
+
+  /// the packages the app uses: the app, its dependencies and
+  /// dev_dependencies, and the dependencies of those, from
+  /// `.dart_tool/package_graph.json`. In a pub workspace this leaves out
+  /// the other members. Null when there is no graph (use all packages).
+  Set<String>? _reachable() {
+    Map<dynamic, dynamic>? pubspec = _yaml(_pubspec);
+    File file = File('${_config.parent.path}/package_graph.json');
+    if (pubspec == null || !file.existsSync()) return null;
+    Map<String, Map<dynamic, dynamic>> graph =
+        <String, Map<dynamic, dynamic>>{};
+    try {
+      dynamic doc = jsonDecode(file.readAsStringSync());
+      for (dynamic package in (doc as Map)['packages'] as List) {
+        graph['${(package as Map)['name']}'] = package;
+      }
+    } catch (error) {
+      return null;
+    }
+    String app = '${pubspec['name']}';
+    Set<String> seen = <String>{app};
+    List<String> todo = <String>[app];
+    while (todo.isNotEmpty) {
+      String name = todo.removeLast();
+      Map<dynamic, dynamic>? node = graph[name];
+      if (node == null) continue;
+      List<dynamic> next = <dynamic>[
+        ...(node['dependencies'] as List?) ?? <dynamic>[],
+        if (name == app) ...(node['devDependencies'] as List?) ?? <dynamic>[],
+      ];
+      for (dynamic dep in next) {
+        if (seen.add('$dep')) todo.add('$dep');
+      }
+    }
+    return seen;
+  }
+
   /// package name => commands library file, of the last [libraries]
   Map<String, String> _files = <String, String>{};
 
@@ -166,9 +213,11 @@ class PackageCommands {
       return libs;
     }
     Uri configUri = _config.absolute.uri;
+    Set<String>? reachable = _reachable();
     for (dynamic entry in packages) {
       if (entry is! Map) continue;
       String name = '${entry['name']}';
+      if (reachable != null && !reachable.contains(name)) continue;
       String rootUri = '${entry['rootUri']}';
       if (!rootUri.endsWith('/')) rootUri = '$rootUri/';
       Uri packageRoot = configUri.resolve(rootUri);

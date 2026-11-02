@@ -8,6 +8,9 @@
 - The commands are found in an app inside a pub workspace too. An app with `resolution: workspace` uses `package_config.json` of the folder above it whose `workspace:` list has the app.
 - The file is also written again when the pubspec.yaml of any package changes (like a path dependency), with no `dart pub get`. A run with warnings (like a commands library that is not there yet) is not cached, so a fix counts on the next run. The files are written with write-then-rename.
 - A `dox: commands:` value must be a plain path like `package:<name>/<path>.dart` (no `..`, no quotes). Else the package is skipped with a warning.
+- Only the packages that the app uses count (from `.dart_tool/package_graph.json`). In a pub workspace, an app does not see the commands of other members.
+- A commands library that is removed after the cache was made is skipped with a warning on the next run. The other packages still work.
+- `dox help <name>` says when more than one command has that name.
 - When a package command throws, `dox` prints the error and its stack trace, and exits with code 1.
 - Now depends on `crypto` and `yaml` directly (they were already used through other packages).
 

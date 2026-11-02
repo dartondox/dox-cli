@@ -15,15 +15,23 @@ void main() {
   late Directory app;
   String cli = Directory.current.path;
 
-  /// a package with one command named [command]
-  void package(String name, String command, String body) {
-    Directory root = Directory('${temp.path}/$name');
+  /// a package with one command named [command], in [dir] (default
+  /// `<temp>/<name>`), with [extra] in its pubspec.yaml
+  void package(
+    String name,
+    String command,
+    String body, {
+    String? dir,
+    String extra = '',
+  }) {
+    Directory root = Directory(dir ?? '${temp.path}/$name');
     File('${root.path}/pubspec.yaml')
       ..createSync(recursive: true)
       ..writeAsStringSync('''
 name: $name
 environment:
-  sdk: ^3.0.0
+  sdk: ^3.6.0
+$extra
 dox:
   commands: package:$name/commands.dart
 ''');
@@ -148,7 +156,20 @@ environment:
   sdk: ^3.6.0
 workspace:
   - member
+  - app_a
+  - app_b
 ''');
+
+    /// two members that do not use each other, with the same command
+    for (String name in <String>['app_a', 'app_b']) {
+      package(
+        name,
+        'report:send',
+        "print('report of $name');",
+        dir: '${ws.path}/$name',
+        extra: 'resolution: workspace',
+      );
+    }
     Directory member = Directory('${ws.path}/member')..createSync();
     File('${member.path}/pubspec.yaml').writeAsStringSync('''
 name: member
@@ -173,6 +194,57 @@ dependencies:
     ], workingDirectory: member.path);
     expect(r.stdout, contains('Hello ws'), reason: '${r.stderr}');
     expect(r.exitCode, 0);
+
+    /// each app sees only its own command, no clash
+    for (String name in <String>['app_a', 'app_b']) {
+      ProcessResult report = await Process.run(dartExecutable(), <String>[
+        '--packages=$cli/.dart_tool/package_config.json',
+        '$cli/bin/dox.dart',
+        'report:send',
+      ], workingDirectory: '${ws.path}/$name');
+      expect(
+        report.stdout,
+        contains('report of $name'),
+        reason: '${report.stderr}',
+      );
+      expect(report.stdout, isNot(contains('More than one')));
+      expect(report.exitCode, 0);
+    }
+  });
+
+  test('a removed commands library does not break the others', () async {
+    package('gone_pkg', 'gone', "print('gone');");
+    Directory gone = Directory('${temp.path}/gone_app')..createSync();
+    File('${gone.path}/pubspec.yaml').writeAsStringSync('''
+name: gone_app
+environment:
+  sdk: ^3.6.0
+dependencies:
+  hello_pkg: {path: ../hello_pkg}
+  gone_pkg: {path: ../gone_pkg}
+''');
+    ProcessResult get = await Process.run(dartExecutable(), <String>[
+      'pub',
+      'get',
+      '--offline',
+    ], workingDirectory: gone.path);
+    expect(get.exitCode, 0, reason: '${get.stdout}${get.stderr}');
+
+    Future<ProcessResult> run(String command) {
+      return Process.run(dartExecutable(), <String>[
+        '--packages=$cli/.dart_tool/package_config.json',
+        '$cli/bin/dox.dart',
+        command,
+      ], workingDirectory: gone.path);
+    }
+
+    expect((await run('gone')).stdout, contains('gone'));
+    File('${temp.path}/gone_pkg/lib/commands.dart').deleteSync();
+
+    ProcessResult hello = await run('hello');
+    expect(hello.stdout, contains('Skip gone_pkg'));
+    expect(hello.stdout, contains('Hello'));
+    expect(hello.exitCode, 0);
   });
 
   test('a commands library made after the key is found', () async {
@@ -253,6 +325,10 @@ final List<Late> commands = <Late>[Late()];
     ProcessResult one = await dox(<String>['help', 'hello']);
     expect(one.stdout, contains('Package:'));
     expect(one.stdout, contains('hello_pkg'));
+
+    ProcessResult clash = await dox(<String>['help', 'same']);
+    expect(clash.stdout, contains('more than one command has this name'));
+    expect(clash.stdout, contains('clash_a, clash_b'));
   });
 
   test('help outside an app does not fail', () async {

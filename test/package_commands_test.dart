@@ -175,13 +175,6 @@ void main() {
     packageConfig(<String>['pkg']);
     expect(PackageCommands(root: app).libraries().keys, <String>['pkg']);
 
-    /// no change: the cache is used, even when a library file is gone
-    File('${temp.path}/pkg/lib/commands.dart')
-        .renameSync('${temp.path}/pkg/commands.bak');
-    expect(PackageCommands(root: app).libraries().keys, <String>['pkg']);
-    File('${temp.path}/pkg/commands.bak')
-        .renameSync('${temp.path}/pkg/lib/commands.dart');
-
     /// a change in a package pubspec.yaml (also an absolute path
     /// dependency) is read again
     package('pkg', '');
@@ -288,6 +281,72 @@ void main() {
       ..createSync(recursive: true)
       ..writeAsStringSync('var commands = [];');
     expect(PackageCommands(root: app).libraries().keys, <String>['app']);
+  });
+
+  test('a commands library removed after the cache is skipped', () {
+    package(
+      'pkg',
+      withKey,
+      lib: <String, String>{'commands.dart': 'var commands = [];'},
+    );
+    package(
+      'other',
+      'dox:\n  commands: package:other/commands.dart\n',
+      lib: <String, String>{'commands.dart': 'var commands = [];'},
+    );
+    package('app', '', dir: app);
+    packageConfig(<String>['pkg', 'other']);
+    expect(PackageCommands(root: app).libraries().keys, <String>[
+      'pkg',
+      'other',
+    ]);
+
+    File('${temp.path}/other/lib/commands.dart').deleteSync();
+    StringBuffer out = StringBuffer();
+    PackageCommands commands = PackageCommands(root: app);
+    expect(capture(() => commands.libraries(), out).keys, <String>['pkg']);
+    expect(out.toString(), contains('Skip other'));
+    expect(commands.runner.readAsStringSync(), isNot(contains('other')));
+  });
+
+  test('only the packages the app uses, from package_graph.json', () {
+    for (String name in <String>['pkg', 'dep', 'dev', 'member']) {
+      package(
+        name,
+        'dox:\n  commands: package:$name/commands.dart\n',
+        lib: <String, String>{'commands.dart': 'var commands = [];'},
+      );
+    }
+    package('app', '', dir: app);
+    packageConfig(<String>['pkg', 'dep', 'dev', 'member']);
+    File('${app.path}/.dart_tool/package_graph.json').writeAsStringSync(
+      jsonEncode(<String, dynamic>{
+        'roots': <String>['app', 'member'],
+        'packages': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'name': 'app',
+            'dependencies': <String>['pkg'],
+            'devDependencies': <String>['dev'],
+          },
+          <String, dynamic>{
+            'name': 'pkg',
+            'dependencies': <String>['dep'],
+          },
+          <String, dynamic>{'name': 'dep', 'dependencies': <String>[]},
+          <String, dynamic>{'name': 'dev', 'dependencies': <String>[]},
+          <String, dynamic>{
+            'name': 'member',
+            'dependencies': <String>[],
+            'devDependencies': <String>[],
+          },
+        ],
+      }),
+    );
+    expect(PackageCommands(root: app).libraries().keys.toSet(), <String>{
+      'pkg',
+      'dep',
+      'dev',
+    });
   });
 
   test('the not found message has a hint', () {

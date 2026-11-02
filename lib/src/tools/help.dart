@@ -67,12 +67,26 @@ Future<void> helpCommand(String commandName) async {
   final command = CommandRegistry.findCommand(commandName);
 
   if (command == null) {
+    List<PackageCommandInfo> matches = <PackageCommandInfo>[];
     for (PackageCommandInfo info in await PackageCommands().list()) {
-      if (info.name != commandName) continue;
+      if (info.name == commandName) matches.add(info);
+    }
+    if (matches.isNotEmpty) {
+      PackageCommandInfo info = matches.first;
       print('\x1B[1mCommand:\x1B[0m ${info.name}');
       print('\x1B[1mUsage:\x1B[0m dox ${info.usage}');
       print('\x1B[1mDescription:\x1B[0m ${info.description}');
       print('\x1B[1mPackage:\x1B[0m ${info.package}');
+      if (matches.length > 1) {
+        List<String> packages = <String>[];
+        for (PackageCommandInfo m in matches) {
+          if (!packages.contains(m.package)) packages.add(m.package);
+        }
+        print(
+          '\x1B[33mNot used: more than one command has this name, in: '
+          '${packages.join(', ')}.\x1B[0m',
+        );
+      }
       print('');
       return;
     }
