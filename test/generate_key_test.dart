@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dox/src/tools/generate_key.dart';
@@ -5,6 +6,21 @@ import 'package:test/test.dart';
 
 void main() {
   late Directory dir;
+
+  /// the lines that [body] prints
+  List<String> printed(void Function() body) {
+    List<String> lines = <String>[];
+    runZoned(
+      body,
+      zoneSpecification: ZoneSpecification(
+        print: (Zone self, ZoneDelegate parent, Zone zone, String line) {
+          lines.add(line);
+        },
+      ),
+    );
+    return lines;
+  }
+
   late File env;
 
   setUp(() {
@@ -80,10 +96,17 @@ void main() {
     });
 
     test('in production with no terminal, it warns and writes the key', () {
-      expect(
-        generateKey(<String>[], env: prod, terminal: false, path: env.path),
-        0,
-      );
+      int? code;
+      List<String> lines = printed(() {
+        code = generateKey(
+          <String>[],
+          env: prod,
+          terminal: false,
+          path: env.path,
+        );
+      });
+      expect(code, 0);
+      expect(lines, contains(contains('Warning: APP_ENV is production.')));
       expect(env.readAsStringSync(), isNot('APP_KEY=old\n'));
     });
 
@@ -114,16 +137,18 @@ void main() {
       expect(env.readAsStringSync(), 'APP_KEY=old\n');
     });
 
-    test('an unknown option writes nothing', () {
-      expect(
-        generateKey(
-          <String>['--nope'],
+    test('an unknown option is ignored with a warning, like 3.0.x', () {
+      int? code;
+      List<String> lines = printed(() {
+        code = generateKey(
+          <String>['foo'],
           env: <String, String>{},
           path: env.path,
-        ),
-        1,
-      );
-      expect(env.readAsStringSync(), 'APP_KEY=old\n');
+        );
+      });
+      expect(code, 0);
+      expect(lines, contains(contains('ignoring unknown option foo')));
+      expect(env.readAsStringSync(), isNot('APP_KEY=old\n'));
     });
   });
 }

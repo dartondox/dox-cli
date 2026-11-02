@@ -21,9 +21,9 @@ int generateKey(
   String? path,
 }) {
   for (String arg in args) {
+    // 3.0.x ignored extra words, so scripts that pass one keep working
     if (arg != '--show' && arg != '--force') {
-      print('Invalid option $arg, use --show or --force');
-      return 1;
+      print('Warning: ignoring unknown option $arg (use --show or --force).');
     }
   }
   String secret = newKey();
