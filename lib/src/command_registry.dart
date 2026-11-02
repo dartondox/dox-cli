@@ -281,9 +281,9 @@ class CommandRegistry {
       maxArgs: 1,
       function: (args) async {
         if (args.isNotEmpty) {
-          helpCommand(args[0]);
+          await helpCommand(args[0]);
         } else {
-          help();
+          await help();
         }
       },
     ),
@@ -572,6 +572,12 @@ Future<void> _migration(
 ) async {
   bool seed = args.contains('--seed');
   args = args.where((String a) => a != '--seed').toList();
+
+  /// a package command (like `dox queue:table`) can add the first Dart
+  /// migration with no bin/migrate.dart: make it, like make:migration
+  if (!migrateEntryFile().existsSync() && hasDartMigrations()) {
+    writeMigrateEntry();
+  }
   if (migrateEntryFile().existsSync()) {
     writeMigrationRegistry();
     int code = await runScript('bin/migrate.dart', <String>[command, ...args]);
@@ -579,13 +585,6 @@ Future<void> _migration(
       exitCode = code;
       return;
     }
-  } else if (hasDartMigrations()) {
-    print(
-      'db/migration has Dart migrations, but bin/migrate.dart is missing. '
-      'Run `dox make:migration <name>` once to make it, or see the docs.',
-    );
-    exitCode = 1;
-    return;
   } else {
     try {
       await direct();

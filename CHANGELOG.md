@@ -1,3 +1,19 @@
+## Unreleased
+
+- New: package commands. A package (or the app) adds `dox` commands with the `dox: commands:` key in its pubspec.yaml, like `dox: {commands: package:dox_queue/commands.dart}`. `dox <name>` finds them when the name is not a built-in command. It reads `.dart_tool/package_config.json`, writes `.dart_tool/dox/commands.dart`, and runs it with `dart run`. The exit code of the command is the exit code of `dox`. The file is written again only when package_config.json or a pubspec.yaml change.
+- A built-in command always wins. Two packages with the same command name print an error (exit code 1). A bad `dox: commands:` key prints a warning, and the other packages still work.
+- `dox help` lists the package commands, one group per package. `dox help <name>` shows one package command. Outside an app, or when no package has commands, it does not start Dart.
+- An unknown command now also prints a hint about the `dox: commands:` key.
+- `dox migrate` (and the other `migration:*` commands) now makes `bin/migrate.dart` when it is missing and `db/migration` has Dart migrations, then goes on. Before, it stopped with "bin/migrate.dart is missing". So a migration that a package command wrote (like `dox queue:table`) runs with `dox migrate`.
+- The commands are found in an app inside a pub workspace too. A member finds the workspace root from `.dart_tool/pub/workspace_ref.json` (so a glob like `apps/*` works).
+- The file is also written again when the pubspec.yaml of any package changes (like a path dependency), with no `dart pub get`. A run with warnings (like a commands library that is not there yet) is not cached, so a fix counts on the next run. The files are written with write-then-rename.
+- A `dox: commands:` value must be a plain path like `package:<name>/<path>.dart` (no `..`, no quotes). Else the package is skipped with a warning.
+- Only the packages that the app uses count (from `.dart_tool/package_graph.json`). In a pub workspace, an app does not see the commands of other members.
+- A commands library that is removed after the cache was made is skipped with a warning on the next run. The other packages still work.
+- `dox help <name>` says when more than one command has that name.
+- When a package command throws, `dox` prints the error and its stack trace, and exits with code 1.
+- Now depends on `crypto` and `yaml` directly (they were already used through other packages).
+
 ## 3.0.1
 
 - Fix: when only `dox serve` got SIGTERM or SIGINT (eg. `kill <pid>` from a script), the server and `build_runner watch` it started kept running and held the port. Now dox stops them first, waits up to 5 seconds, then exits. Ctrl+C in a terminal already worked.

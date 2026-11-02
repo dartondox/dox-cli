@@ -256,6 +256,21 @@ void main() {
       expect(read('bin/migrate.dart'), '// mine');
     });
 
+    test('migrate makes a missing bin/migrate.dart and goes on', () async {
+      /// like a file from `dox queue:table`, with no bin/migrate.dart yet
+      File('db/migration/2020_01_01_000000_create_queue_tables.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('class CreateQueueTables extends Migration {}');
+      await CommandRegistry.findCommand('migration:status')!
+          .function(<String>[]);
+      expect(read('bin/migrate.dart'), contains('Migrator('));
+      expect(
+        read('db/migration/migrations.dart'),
+        contains('CreateQueueTables'),
+      );
+      exitCode = 0;
+    });
+
     test('--sql flag writes a sql file, no registry', () async {
       List<File> files = await run(<String>['add_index', '--sql']);
       expect(files.single.path, endsWith('add_index.sql'));

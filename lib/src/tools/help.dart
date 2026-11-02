@@ -1,7 +1,8 @@
 import '../command_registry.dart';
 import '../types.dart';
+import 'package_commands.dart';
 
-void help() {
+Future<void> help() async {
   print("Usage: dox <command> [arguments] \n");
   print('Available commands: \n');
 
@@ -31,12 +32,64 @@ void help() {
     }
     print('');
   }
+  _printPackageCommands(await PackageCommands().list());
 }
 
-void helpCommand(String commandName) {
+/// the commands of the packages and of the app, one group per package.
+/// A built-in command with the same name always wins, so that one is
+/// marked as not used.
+void _printPackageCommands(List<PackageCommandInfo> commands) {
+  Map<String, List<PackageCommandInfo>> packages = {};
+  Map<String, int> count = {};
+  for (PackageCommandInfo command in commands) {
+    packages.putIfAbsent(command.package, () => []).add(command);
+    count[command.name] = (count[command.name] ?? 0) + 1;
+  }
+  for (String package in packages.keys.toList()..sort()) {
+    print('\x1B[1m$package:\x1B[0m');
+    List<PackageCommandInfo> list = packages[package]!
+      ..sort((a, b) => a.name.compareTo(b.name));
+    for (PackageCommandInfo command in list) {
+      String note = '';
+      if (CommandRegistry.findCommand(command.name) != null) {
+        note = ' (not used: a built-in command has this name)';
+      } else if (count[command.name]! > 1) {
+        note = ' (not used: more than one command has this name)';
+      }
+      final padding = ' ' * (30 - command.usage.length).clamp(1, 30);
+      print('  ${command.usage}$padding ${command.description}$note');
+    }
+    print('');
+  }
+}
+
+Future<void> helpCommand(String commandName) async {
   final command = CommandRegistry.findCommand(commandName);
 
   if (command == null) {
+    List<PackageCommandInfo> matches = <PackageCommandInfo>[];
+    for (PackageCommandInfo info in await PackageCommands().list()) {
+      if (info.name == commandName) matches.add(info);
+    }
+    if (matches.isNotEmpty) {
+      PackageCommandInfo info = matches.first;
+      print('\x1B[1mCommand:\x1B[0m ${info.name}');
+      print('\x1B[1mUsage:\x1B[0m dox ${info.usage}');
+      print('\x1B[1mDescription:\x1B[0m ${info.description}');
+      print('\x1B[1mPackage:\x1B[0m ${info.package}');
+      if (matches.length > 1) {
+        List<String> packages = <String>[];
+        for (PackageCommandInfo m in matches) {
+          if (!packages.contains(m.package)) packages.add(m.package);
+        }
+        print(
+          '\x1B[33mNot used: more than one command has this name, in: '
+          '${packages.join(', ')}.\x1B[0m',
+        );
+      }
+      print('');
+      return;
+    }
     print('Command "$commandName" not found.');
     print('Run "dox help" to see all available commands.');
     return;
