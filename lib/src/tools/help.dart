@@ -54,7 +54,7 @@ void _printPackageCommands(List<PackageCommandInfo> commands) {
       if (CommandRegistry.findCommand(command.name) != null) {
         note = ' (not used: a built-in command has this name)';
       } else if (count[command.name]! > 1) {
-        note = ' (not used: more than one package has this name)';
+        note = ' (not used: more than one command has this name)';
       }
       final padding = ' ' * (30 - command.usage.length).clamp(1, 30);
       print('  ${command.usage}$padding ${command.description}$note');

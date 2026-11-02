@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../utils/run_script.dart';
@@ -62,16 +63,37 @@ class PackageCommands {
   /// workspace the app is in (a folder above it)
   late final File _config;
 
+  /// the app's own package_config.json. Only an app with
+  /// `resolution: workspace` looks in the folders above it, and only in a
+  /// folder whose pubspec.yaml lists the app under `workspace:`.
   File _findConfig() {
-    Directory dir = root;
-    while (true) {
-      File file = File('${dir.path}/.dart_tool/package_config.json');
-      if (file.existsSync()) return file;
-      Directory parent = dir.parent;
-      if (parent.path == dir.path) {
-        return File('${root.path}/.dart_tool/package_config.json');
+    File own = File('${root.path}/.dart_tool/package_config.json');
+    if (own.existsSync() || _yaml(_pubspec)?['resolution'] != 'workspace') {
+      return own;
+    }
+    Directory dir = root.parent;
+    while (dir.parent.path != dir.path) {
+      dynamic members = _yaml(File('${dir.path}/pubspec.yaml'))?['workspace'];
+      if (members is List) {
+        for (dynamic member in members) {
+          if (p.equals(p.join(dir.path, '$member'), root.path)) {
+            return File('${dir.path}/.dart_tool/package_config.json');
+          }
+        }
       }
-      dir = parent;
+      dir = dir.parent;
+    }
+    return own;
+  }
+
+  /// the YAML map of [file], or null
+  Map<dynamic, dynamic>? _yaml(File file) {
+    try {
+      if (!file.existsSync()) return null;
+      dynamic doc = loadYaml(file.readAsStringSync());
+      return doc is Map ? doc : null;
+    } catch (error) {
+      return null;
     }
   }
 
@@ -86,36 +108,48 @@ class PackageCommands {
 
   /// package name => its commands library, like
   /// `{'dox_queue': 'package:dox_queue/commands.dart'}`.
-  /// From the cache when package_config.json and pubspec.yaml did not
-  /// change. Else found again, and the runner is written again.
+  /// From the cache when package_config.json and the pubspec.yaml files
+  /// did not change. Else found again, and the runner is written again.
+  /// A discovery with warnings is not cached, so a fix (like a commands
+  /// library that is added later) counts on the next run.
   Map<String, String> libraries() {
     if (!inApp) return <String, String>{};
     String key = _key();
     Map<String, dynamic> cache = _readCache();
     if (cache['key'] == key &&
         cache['libraries'] is Map &&
+        cache['files'] is Map &&
         (runner.existsSync() || (cache['libraries'] as Map).isEmpty)) {
-      for (dynamic warning in (cache['warnings'] as List?) ?? <dynamic>[]) {
-        _warn('$warning');
-      }
+      _files = Map<String, String>.from(cache['files'] as Map);
+      _cacheKey = key;
       return Map<String, String>.from(cache['libraries'] as Map);
     }
     Map<String, String> files = <String, String>{};
     Map<String, String> libs = discover(files: files);
+    _files = files;
     if (libs.isEmpty) {
       if (runner.existsSync()) runner.deleteSync();
     } else {
-      runner.createSync(recursive: true);
-      runner.writeAsStringSync(runnerSource(libs));
+      _writeAtomic(runner, runnerSource(libs));
     }
-    _writeCache(<String, dynamic>{
-      'key': key,
-      'libraries': libs,
-      'files': files,
-      'warnings': _warnings,
-    });
+    if (_warnings.isEmpty) {
+      _cacheKey = key;
+      _writeCache(<String, dynamic>{
+        'key': key,
+        'libraries': libs,
+        'files': files,
+      });
+    } else if (_cache.existsSync()) {
+      _cache.deleteSync();
+    }
     return libs;
   }
+
+  /// package name => commands library file, of the last [libraries]
+  Map<String, String> _files = <String, String>{};
+
+  /// the key of a cache that is valid, or null (do not cache the list)
+  String? _cacheKey;
 
   /// read the `dox: commands:` key of every package in
   /// package_config.json (the app is one of them). A bad key prints a
@@ -248,22 +282,24 @@ Future<void> main(List<String> args) async {
 
   String name = args.first;
   List<String> owners = <String>[];
+  int matches = 0;
   dynamic found;
   for (String package in packages.keys) {
     for (dynamic command in packages[package]!) {
       if (command.name == name) {
-        owners.add(package);
+        matches++;
+        if (!owners.contains(package)) owners.add(package);
         found = command;
       }
     }
   }
-  if (owners.isEmpty) {
+  if (matches == 0) {
     print($notFound.replaceAll('{name}', name));
     return;
   }
-  if (owners.length > 1) {
+  if (matches > 1) {
     print(
-      'More than one package has a command named "\$name": '
+      'More than one command is named "\$name", in: '
       '\${owners.join(', ')}. Remove one of these packages, '
       'or ask its author to rename the command.',
     );
@@ -297,14 +333,18 @@ Future<void> main(List<String> args) async {
     Map<String, String> libs = libraries();
     if (libs.isEmpty) return <PackageCommandInfo>[];
     Map<String, dynamic> cache = _readCache();
-    String listKey = _listKey(cache);
-    dynamic commands = cache['listKey'] == listKey ? cache['commands'] : null;
+    String listKey = _listKey();
+    dynamic commands = _cacheKey != null && cache['listKey'] == listKey
+        ? cache['commands']
+        : null;
     if (commands is! List) {
       commands = await _loadList();
       if (commands == null) return <PackageCommandInfo>[];
-      cache['listKey'] = listKey;
-      cache['commands'] = commands;
-      _writeCache(cache);
+      if (_cacheKey != null && cache['key'] == _cacheKey) {
+        cache['listKey'] = listKey;
+        cache['commands'] = commands;
+        _writeCache(cache);
+      }
     }
     List<PackageCommandInfo> infos = <PackageCommandInfo>[];
     for (dynamic c in commands) {
@@ -343,10 +383,10 @@ Future<void> main(List<String> args) async {
     return null;
   }
 
-  /// changes when package_config.json, the app pubspec.yaml or the
-  /// pubspec.yaml of a path dependency change. A path dependency has a
-  /// relative `rootUri`. Hosted and git packages are in the pub cache
-  /// and do not change.
+  /// changes when package_config.json or the pubspec.yaml of the app or
+  /// of any package change. So a path dependency (relative or absolute)
+  /// that changes its key counts with no `dart pub get`. Reading every
+  /// pubspec.yaml takes a few ms.
   String _key() {
     List<int> bytes = <int>[
       ..._config.readAsBytesSync(),
@@ -358,7 +398,6 @@ Future<void> main(List<String> args) async {
       Uri configUri = _config.absolute.uri;
       for (dynamic entry in (config as Map)['packages'] as List) {
         String rootUri = '${(entry as Map)['rootUri']}';
-        if (Uri.parse(rootUri).hasScheme) continue;
         if (!rootUri.endsWith('/')) rootUri = '$rootUri/';
         File pubspec = File.fromUri(
           configUri.resolve(rootUri).resolve('pubspec.yaml'),
@@ -372,17 +411,14 @@ Future<void> main(List<String> args) async {
     return sha1.convert(bytes).toString();
   }
 
-  /// [_key], plus the text of each commands library, so `dox help` sees
-  /// a new command in a library that changed
-  String _listKey(Map<String, dynamic> cache) {
-    List<int> bytes = <int>[...utf8.encode('${cache['key']}')];
-    dynamic files = cache['files'];
-    if (files is Map) {
-      for (dynamic path in files.values) {
-        File file = File('$path');
-        if (file.existsSync()) bytes.addAll(file.readAsBytesSync());
-        bytes.add(0);
-      }
+  /// [_cacheKey], plus the text of each commands library, so `dox help`
+  /// sees a new command in a library that changed
+  String _listKey() {
+    List<int> bytes = <int>[...utf8.encode('$_cacheKey')];
+    for (String path in _files.values) {
+      File file = File(path);
+      if (file.existsSync()) bytes.addAll(file.readAsBytesSync());
+      bytes.add(0);
     }
     return sha1.convert(bytes).toString();
   }
@@ -397,12 +433,20 @@ Future<void> main(List<String> args) async {
   }
 
   void _writeCache(Map<String, dynamic> cache) {
-    _cache.createSync(recursive: true);
-    _cache.writeAsStringSync(jsonEncode(cache));
+    _writeAtomic(_cache, jsonEncode(cache));
   }
 
-  /// the warnings of the last [discover], kept in the cache so they show
-  /// on each run until the package is fixed
+  /// write a temp file, then rename it, so a second `dox` that runs at
+  /// the same time never reads a half-written file
+  void _writeAtomic(File file, String text) {
+    file.parent.createSync(recursive: true);
+    File temp = File('${file.path}.$pid.tmp');
+    temp.writeAsStringSync(text);
+    temp.renameSync(file.path);
+  }
+
+  /// the warnings of the last [discover]. A discovery with warnings is
+  /// not cached, so they show on each run until the package is fixed.
   final List<String> _warnings = <String>[];
 
   void _warn(String message) {

@@ -175,9 +175,55 @@ dependencies:
     expect(r.exitCode, 0);
   });
 
+  test('a commands library made after the key is found', () async {
+    Directory late = Directory('${temp.path}/late_app')..createSync();
+    File('${late.path}/pubspec.yaml').writeAsStringSync('''
+name: late_app
+environment:
+  sdk: ^3.0.0
+dox:
+  commands: package:late_app/commands.dart
+''');
+    ProcessResult get = await Process.run(dartExecutable(), <String>[
+      'pub',
+      'get',
+      '--offline',
+    ], workingDirectory: late.path);
+    expect(get.exitCode, 0, reason: '${get.stdout}${get.stderr}');
+
+    Future<ProcessResult> run() {
+      return Process.run(dartExecutable(), <String>[
+        '--packages=$cli/.dart_tool/package_config.json',
+        '$cli/bin/dox.dart',
+        'late:hi',
+      ], workingDirectory: late.path);
+    }
+
+    ProcessResult before = await run();
+    expect(before.stdout, contains('Skip late_app'));
+    expect(before.stdout, contains('Could not find a command'));
+
+    File('${late.path}/lib/commands.dart')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('''
+class Late {
+  String get name => 'late:hi';
+  String get description => 'late';
+  String get usage => 'late:hi';
+  Future<void> run(List<String> args) async => print('late hi');
+}
+
+final List<Late> commands = <Late>[Late()];
+''');
+    ProcessResult after = await run();
+    expect(after.stdout, contains('late hi'));
+    expect(after.stdout, isNot(contains('Skip late_app')));
+    expect(after.exitCode, 0);
+  });
+
   test('two packages with one name print an error', () async {
     ProcessResult r = await dox(<String>['same']);
-    expect(r.stdout, contains('More than one package'));
+    expect(r.stdout, contains('More than one command'));
     expect(r.stdout, contains('clash_a, clash_b'));
     expect(r.exitCode, 1);
   });
@@ -202,7 +248,7 @@ dependencies:
     expect(out, contains('The hello command of hello_pkg'));
     expect(out, contains('app:hi'));
     expect(out, contains('a built-in command has this name'));
-    expect(out, contains('more than one package has this name'));
+    expect(out, contains('more than one command has this name'));
 
     ProcessResult one = await dox(<String>['help', 'hello']);
     expect(one.stdout, contains('Package:'));

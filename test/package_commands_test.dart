@@ -155,7 +155,11 @@ void main() {
     expect(out.toString(), contains('Skip list'));
     expect(out.toString(), contains('Skip broken'));
 
-    /// the warning shows again from the cache
+    /// not cached: the warning shows again on the next run
+    expect(
+      File('${app.path}/.dart_tool/dox/commands.json').existsSync(),
+      isFalse,
+    );
     StringBuffer again = StringBuffer();
     capture(() => PackageCommands(root: app).libraries(), again);
     expect(again.toString(), contains('Skip other'));
@@ -171,20 +175,33 @@ void main() {
     packageConfig(<String>['pkg']);
     expect(PackageCommands(root: app).libraries().keys, <String>['pkg']);
 
-    /// a change in the package alone is not read again
+    /// no change: the cache is used, even when a library file is gone
+    File('${temp.path}/pkg/lib/commands.dart')
+        .renameSync('${temp.path}/pkg/commands.bak');
+    expect(PackageCommands(root: app).libraries().keys, <String>['pkg']);
+    File('${temp.path}/pkg/commands.bak')
+        .renameSync('${temp.path}/pkg/lib/commands.dart');
+
+    /// a change in a package pubspec.yaml (also an absolute path
+    /// dependency) is read again
     package('pkg', '');
+    expect(PackageCommands(root: app).libraries(), isEmpty);
+    package('pkg', withKey);
     expect(PackageCommands(root: app).libraries().keys, <String>['pkg']);
 
     /// `dart pub get` writes package_config.json again
-    packageConfig(<String>['pkg', 'x']);
+    packageConfig(<String>[]);
     expect(PackageCommands(root: app).libraries(), isEmpty);
     expect(PackageCommands(root: app).runner.existsSync(), isFalse);
 
     /// a change in the app pubspec.yaml counts too
-    package('pkg', withKey);
-    expect(PackageCommands(root: app).libraries(), isEmpty);
-    package('app', '# changed\n', dir: app);
-    expect(PackageCommands(root: app).libraries().keys, <String>['pkg']);
+    package(
+      'app',
+      'dox:\n  commands: package:app/commands.dart\n',
+      lib: <String, String>{'commands.dart': 'var commands = [];'},
+      dir: app,
+    );
+    expect(PackageCommands(root: app).libraries().keys, <String>['app']);
   });
 
   test('a path dependency that changes its key is read again', () {
@@ -228,14 +245,49 @@ void main() {
       withKey,
       lib: <String, String>{'commands.dart': 'var commands = [];'},
     );
+    package('app', 'workspace:\n  - member\n', dir: app);
     Directory member = Directory('${app.path}/member')..createSync();
-    package('member', '', dir: member);
+    package('member', 'resolution: workspace\n', dir: member);
     packageConfig(<String>['pkg']);
 
     PackageCommands commands = PackageCommands(root: member);
     expect(commands.inApp, isTrue);
     expect(commands.libraries().keys, <String>['pkg']);
     expect(commands.runner.path, startsWith(member.path));
+  });
+
+  test('an app that is not a workspace member does not look up', () {
+    package(
+      'pkg',
+      withKey,
+      lib: <String, String>{'commands.dart': 'var commands = [];'},
+    );
+    package('app', 'workspace:\n  - member\n', dir: app);
+    packageConfig(<String>['pkg']);
+
+    /// no `resolution: workspace`
+    Directory plain = Directory('${app.path}/plain')..createSync();
+    package('plain', '', dir: plain);
+    expect(PackageCommands(root: plain).inApp, isFalse);
+
+    /// `resolution: workspace`, but not in the `workspace:` list
+    Directory other = Directory('${app.path}/other')..createSync();
+    package('other', 'resolution: workspace\n', dir: other);
+    expect(PackageCommands(root: other).inApp, isFalse);
+  });
+
+  test('a commands library added after the key is found', () {
+    package('app', 'dox:\n  commands: package:app/commands.dart\n', dir: app);
+    packageConfig(<String>[]);
+
+    StringBuffer out = StringBuffer();
+    expect(capture(() => PackageCommands(root: app).libraries(), out), isEmpty);
+    expect(out.toString(), contains('Skip app'));
+
+    File('${app.path}/lib/commands.dart')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('var commands = [];');
+    expect(PackageCommands(root: app).libraries().keys, <String>['app']);
   });
 
   test('the not found message has a hint', () {
