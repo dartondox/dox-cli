@@ -23,6 +23,7 @@
 - Safety: `dox key:generate` changes `APP_KEY`, which logs out every user. When `APP_ENV=production`, it now stops with exit code 1 and changes nothing. `--force` changes the key anyway. Outside production it works as before.
 - New: `dox key:generate --show` prints a new key and writes nothing.
 - Fix: `dox migration:rollback --step 2` (with a space) was rejected. Now it works, like `--step=2`. `--step` given twice (like `--step=2 --step=3`) used the last value with no message. Now it prints an error and exits with code 1.
+- Fix: the `dox serve` warning for an unknown option always said `APP_PORT=8080`. Now it shows the port you typed, like `APP_PORT=3000` for `--port=3000`.
 
 ## 3.0.1
 
