@@ -51,13 +51,53 @@ void main() {
       expect(env.readAsStringSync(), isNot('APP_KEY=old\n'));
     });
 
-    test('in production it writes nothing without --force', () {
-      expect(generateKey(<String>[], env: prod, path: env.path), 1);
+    test('in production with a terminal, a "no" writes nothing', () {
+      expect(
+        generateKey(
+          <String>[],
+          env: prod,
+          terminal: true,
+          ask: () => 'n',
+          path: env.path,
+        ),
+        1,
+      );
       expect(env.readAsStringSync(), 'APP_KEY=old\n');
     });
 
-    test('in production --force writes the key', () {
-      expect(generateKey(<String>['--force'], env: prod, path: env.path), 0);
+    test('in production with a terminal, a "y" writes the key', () {
+      expect(
+        generateKey(
+          <String>[],
+          env: prod,
+          terminal: true,
+          ask: () => 'y',
+          path: env.path,
+        ),
+        0,
+      );
+      expect(env.readAsStringSync(), isNot('APP_KEY=old\n'));
+    });
+
+    test('in production with no terminal, it warns and writes the key', () {
+      expect(
+        generateKey(<String>[], env: prod, terminal: false, path: env.path),
+        0,
+      );
+      expect(env.readAsStringSync(), isNot('APP_KEY=old\n'));
+    });
+
+    test('in production --force writes the key with no question', () {
+      expect(
+        generateKey(
+          <String>['--force'],
+          env: prod,
+          terminal: true,
+          ask: () => throw StateError('must not ask'),
+          path: env.path,
+        ),
+        0,
+      );
       expect(env.readAsStringSync(), isNot('APP_KEY=old\n'));
     });
 

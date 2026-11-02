@@ -24,7 +24,11 @@ void main() {
 
   test('the serve option warning shows the port that was typed', () {
     expect(serveOptionWarning('--port=3000'), contains('APP_PORT=3000 dox'));
-    expect(serveOptionWarning('3000'), contains('APP_PORT=3000 dox'));
+    expect(serveOptionWarning('3000'), contains('APP_PORT=8080 dox'));
+    expect(
+      serveOptionWarning('--host=127.0.0.1'),
+      contains('APP_PORT=8080 dox'),
+    );
     expect(serveOptionWarning('--watch'), contains('APP_PORT=8080 dox'));
   });
 
