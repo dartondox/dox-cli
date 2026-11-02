@@ -1,10 +1,42 @@
 import 'dart:io';
 import 'dart:math';
 
-void generateKey() {
+// same .env rules as the production check of the migration commands
+import 'package:dox_migration/env.dart' show loadEnv;
+
+/// `dox key:generate [--show] [--force]`. Gives the exit code.
+///
+/// - `--show`: print a new key, write nothing.
+/// - APP_ENV is `production`: stop with exit code 1, because a new
+///   `APP_KEY` logs out every user. `--force` writes the key anyway.
+/// - else: write a new `APP_KEY` to `.env`, like before.
+///
+/// [env] and [path] (the `.env` file) are for tests.
+int generateKey(List<String> args, {Map<String, String>? env, String? path}) {
+  for (String arg in args) {
+    if (arg != '--show' && arg != '--force') {
+      print('Invalid option $arg, use --show or --force');
+      return 1;
+    }
+  }
   String secret = newKey();
+  if (args.contains('--show')) {
+    print(secret);
+    return 0;
+  }
+  env ??= loadEnv();
+  if (env['APP_ENV']?.toLowerCase() == 'production' &&
+      !args.contains('--force')) {
+    print(
+      'APP_ENV is production. A new APP_KEY logs out every user. '
+      'Nothing was changed. Use --force to change it anyway, '
+      'or --show to only print a new key.',
+    );
+    return 1;
+  }
+  overrideKey(secret, path);
   print("\x1B[34m$secret : Key have been updated successfully in .env!\x1B[0m");
-  overrideKey(secret);
+  return 0;
 }
 
 /// A new random key of 32 characters (A-Z, a-z, 0-9).

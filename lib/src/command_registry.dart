@@ -237,11 +237,13 @@ class CommandRegistry {
     // Key generation command
     CommandDefinition(
       command: 'key:generate',
-      helpInfo: 'key:generate',
-      description: 'Generate application key',
+      helpInfo: 'key:generate [--show] [--force]',
+      description:
+          'Generate application key (--show prints one and writes nothing)',
       category: CommandCategory.generation,
       function: (args) async {
-        generateKey();
+        int code = generateKey(args);
+        if (code != 0) exitCode = code;
       },
     ),
 
