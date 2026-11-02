@@ -17,6 +17,7 @@ import 'package:dox/src/tools/help.dart';
 import 'package:dox/src/tools/openapi_generate.dart';
 import 'package:dox/src/tools/server_serve.dart';
 import 'package:dox/src/tools/update_dox.dart';
+import 'package:dox/src/utils/confirm_drop.dart';
 import 'package:dox/src/utils/run_script.dart';
 import 'package:dox/src/utils/utils.dart';
 import 'package:dox/src/version.dart';
@@ -328,34 +329,49 @@ class CommandRegistry {
 
     CommandDefinition(
       command: 'migration:reset',
-      helpInfo: 'migration:reset',
+      helpInfo: 'migration:reset [--force]',
       description: 'Rollback all migrations',
       category: CommandCategory.database,
       aliases: ['migrate:reset'],
       function: (args) async {
-        await _migration('reset', args, () => Migrator().reset());
+        await _migration(
+          'reset',
+          args,
+          () => Migrator().reset(),
+          dropsAll: true,
+        );
       },
     ),
 
     CommandDefinition(
       command: 'migration:refresh',
-      helpInfo: 'migration:refresh [--seed]',
+      helpInfo: 'migration:refresh [--seed] [--force]',
       description: 'Rollback all migrations and run them again',
       category: CommandCategory.database,
       aliases: ['migrate:refresh'],
       function: (args) async {
-        await _migration('refresh', args, () => Migrator().refresh());
+        await _migration(
+          'refresh',
+          args,
+          () => Migrator().refresh(),
+          dropsAll: true,
+        );
       },
     ),
 
     CommandDefinition(
       command: 'migration:fresh',
-      helpInfo: 'migration:fresh [--seed]',
+      helpInfo: 'migration:fresh [--seed] [--force]',
       description: 'Drop all tables and run all migrations again',
       category: CommandCategory.database,
       aliases: ['migrate:fresh'],
       function: (args) async {
-        await _migration('fresh', args, () => Migrator().fresh());
+        await _migration(
+          'fresh',
+          args,
+          () => Migrator().fresh(),
+          dropsAll: true,
+        );
       },
     ),
 
@@ -565,13 +581,22 @@ class CommandRegistry {
 /// `--seed` in [args] runs the seeders after it, see [_seed].
 /// print the error and set exit code 1 when it fails,
 /// so scripts and CI see the failure.
+/// [dropsAll]: the command drops all tables, so check [confirmDropAll]
+/// first. `--force` skips the question.
 Future<void> _migration(
   String command,
   List<String> args,
-  Future<void> Function() direct,
-) async {
+  Future<void> Function() direct, {
+  bool dropsAll = false,
+}) async {
   bool seed = args.contains('--seed');
-  args = args.where((String a) => a != '--seed').toList();
+  bool force = args.contains('--force');
+  args = args.where((String a) => a != '--seed' && a != '--force').toList();
+  if (dropsAll && !confirmDropAll(force: force)) {
+    print('Stopped. No table was dropped.');
+    exitCode = 1;
+    return;
+  }
 
   /// a package command (like `dox queue:table`) can add the first Dart
   /// migration with no bin/migrate.dart: make it, like make:migration
