@@ -448,6 +448,22 @@ void main() {
         isTrue,
       );
     });
+
+    test('no command, unknown command and bad args exit with 1', () async {
+      String bin = '${originalCwd.path}/bin/dox.dart';
+      for (List<String> args in <List<String>>[
+        <String>[],
+        <String>['no:such:command'],
+        <String>['make:model'],
+      ]) {
+        ProcessResult r = await Process.run(
+          Platform.resolvedExecutable,
+          <String>['run', bin, ...args],
+          workingDirectory: tempDir.path,
+        );
+        expect(r.exitCode, 1, reason: '$args: ${r.stdout}${r.stderr}');
+      }
+    });
   });
 
   group('generators | unsafe names', () {
