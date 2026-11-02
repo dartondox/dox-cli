@@ -5,7 +5,7 @@
 - `dox help` lists the package commands, one group per package. `dox help <name>` shows one package command. Outside an app, or when no package has commands, it does not start Dart.
 - An unknown command now also prints a hint about the `dox: commands:` key.
 - `dox migrate` (and the other `migration:*` commands) now makes `bin/migrate.dart` when it is missing and `db/migration` has Dart migrations, then goes on. Before, it stopped with "bin/migrate.dart is missing". So a migration that a package command wrote (like `dox queue:table`) runs with `dox migrate`.
-- The commands are found in an app inside a pub workspace too. An app with `resolution: workspace` uses `package_config.json` of the folder above it whose `workspace:` list has the app.
+- The commands are found in an app inside a pub workspace too. A member finds the workspace root from `.dart_tool/pub/workspace_ref.json` (so a glob like `apps/*` works).
 - The file is also written again when the pubspec.yaml of any package changes (like a path dependency), with no `dart pub get`. A run with warnings (like a commands library that is not there yet) is not cached, so a fix counts on the next run. The files are written with write-then-rename.
 - A `dox: commands:` value must be a plain path like `package:<name>/<path>.dart` (no `..`, no quotes). Else the package is skipped with a warning.
 - Only the packages that the app uses count (from `.dart_tool/package_graph.json`). In a pub workspace, an app does not see the commands of other members.

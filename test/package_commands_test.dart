@@ -232,16 +232,21 @@ void main() {
     expect(out.toString(), contains('Skip up'));
   });
 
-  test('finds package_config.json of a pub workspace above the app', () {
+  test('finds package_config.json of a pub workspace from workspace_ref', () {
     package(
       'pkg',
       withKey,
       lib: <String, String>{'commands.dart': 'var commands = [];'},
     );
-    package('app', 'workspace:\n  - member\n', dir: app);
-    Directory member = Directory('${app.path}/member')..createSync();
-    package('member', 'resolution: workspace\n', dir: member);
+    package('app', 'workspace:\n  - apps/*\n', dir: app);
     packageConfig(<String>['pkg']);
+
+    /// a member listed by a glob: `dart pub get` writes workspace_ref.json
+    Directory member = Directory('${app.path}/apps/member');
+    package('member', 'resolution: workspace\n', dir: member);
+    File('${member.path}/.dart_tool/pub/workspace_ref.json')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('{"workspaceRoot": "../../../.."}');
 
     PackageCommands commands = PackageCommands(root: member);
     expect(commands.inApp, isTrue);
@@ -250,23 +255,13 @@ void main() {
   });
 
   test('an app that is not a workspace member does not look up', () {
-    package(
-      'pkg',
-      withKey,
-      lib: <String, String>{'commands.dart': 'var commands = [];'},
-    );
-    package('app', 'workspace:\n  - member\n', dir: app);
-    packageConfig(<String>['pkg']);
+    package('app', 'workspace:\n  - apps/*\n', dir: app);
+    packageConfig(<String>[]);
 
-    /// no `resolution: workspace`
-    Directory plain = Directory('${app.path}/plain')..createSync();
-    package('plain', '', dir: plain);
+    /// no workspace_ref.json: not a member (or no `dart pub get` yet)
+    Directory plain = Directory('${app.path}/apps/plain');
+    package('plain', 'resolution: workspace\n', dir: plain);
     expect(PackageCommands(root: plain).inApp, isFalse);
-
-    /// `resolution: workspace`, but not in the `workspace:` list
-    Directory other = Directory('${app.path}/other')..createSync();
-    package('other', 'resolution: workspace\n', dir: other);
-    expect(PackageCommands(root: other).inApp, isFalse);
   });
 
   test('a commands library added after the key is found', () {

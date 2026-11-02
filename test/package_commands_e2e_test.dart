@@ -153,11 +153,10 @@ final List<AppCommand> commands = <AppCommand>[AppCommand()];
     File('${ws.path}/pubspec.yaml').writeAsStringSync('''
 name: ws
 environment:
-  sdk: ^3.6.0
+  sdk: ^3.11.0
 workspace:
   - member
-  - app_a
-  - app_b
+  - apps/*
 ''');
 
     /// two members that do not use each other, with the same command
@@ -166,7 +165,7 @@ workspace:
         name,
         'report:send',
         "print('report of $name');",
-        dir: '${ws.path}/$name',
+        dir: '${ws.path}/apps/$name',
         extra: 'resolution: workspace',
       );
     }
@@ -201,7 +200,7 @@ dependencies:
         '--packages=$cli/.dart_tool/package_config.json',
         '$cli/bin/dox.dart',
         'report:send',
-      ], workingDirectory: '${ws.path}/$name');
+      ], workingDirectory: '${ws.path}/apps/$name');
       expect(
         report.stdout,
         contains('report of $name'),

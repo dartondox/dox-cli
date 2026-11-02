@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
-import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../utils/run_script.dart';
@@ -63,27 +62,23 @@ class PackageCommands {
   /// workspace the app is in (a folder above it)
   late final File _config;
 
-  /// the app's own package_config.json. Only an app with
-  /// `resolution: workspace` looks in the folders above it, and only in a
-  /// folder whose pubspec.yaml lists the app under `workspace:`.
+  /// the app's own package_config.json, or for a pub workspace member
+  /// the one of the workspace root. `dart pub get` writes the root in
+  /// `.dart_tool/pub/workspace_ref.json` of each member (this also works
+  /// for members listed by a glob, like `apps/*`).
   File _findConfig() {
     File own = File('${root.path}/.dart_tool/package_config.json');
-    if (own.existsSync() || _yaml(_pubspec)?['resolution'] != 'workspace') {
+    File ref = File('${root.path}/.dart_tool/pub/workspace_ref.json');
+    if (own.existsSync() || !ref.existsSync()) return own;
+    try {
+      dynamic doc = jsonDecode(ref.readAsStringSync());
+      String path = '${(doc as Map)['workspaceRoot']}';
+      if (!path.endsWith('/')) path = '$path/';
+      Uri wsRoot = ref.absolute.uri.resolve(path);
+      return File.fromUri(wsRoot.resolve('.dart_tool/package_config.json'));
+    } catch (error) {
       return own;
     }
-    Directory dir = root.parent;
-    while (dir.parent.path != dir.path) {
-      dynamic members = _yaml(File('${dir.path}/pubspec.yaml'))?['workspace'];
-      if (members is List) {
-        for (dynamic member in members) {
-          if (p.equals(p.join(dir.path, '$member'), root.path)) {
-            return File('${dir.path}/.dart_tool/package_config.json');
-          }
-        }
-      }
-      dir = dir.parent;
-    }
-    return own;
   }
 
   /// the YAML map of [file], or null
