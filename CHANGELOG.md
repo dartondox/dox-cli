@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Fix: an unknown command in an app with package commands (like an app with dox_queue) now exits with code 1. Before, it printed "Could not find a command" and exited with 0. An app that already has `.dart_tool/dox/commands.dart` gets the new file on the next run.
+- Fix: the model from `dox make:model` has no `unintended_html_in_doc_comment` info any more. The `<String>[...]` example in its doc comment is now in backticks.
 - New: package commands. A package (or the app) adds `dox` commands with the `dox: commands:` key in its pubspec.yaml, like `dox: {commands: package:dox_queue/commands.dart}`. `dox <name>` finds them when the name is not a built-in command. It reads `.dart_tool/package_config.json`, writes `.dart_tool/dox/commands.dart`, and runs it with `dart run`. The exit code of the command is the exit code of `dox`. The file is written again only when package_config.json or a pubspec.yaml change.
 - A built-in command always wins. Two packages with the same command name print an error (exit code 1). A bad `dox: commands:` key prints a warning, and the other packages still work.
 - `dox help` lists the package commands, one group per package. `dox help <name>` shows one package command. Outside an app, or when no package has commands, it does not start Dart.

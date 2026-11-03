@@ -197,6 +197,23 @@ void main() {
     expect(PackageCommands(root: app).libraries().keys, <String>['app']);
   });
 
+  test('an old runner from an older CLI is written again', () {
+    package(
+      'pkg',
+      withKey,
+      lib: <String, String>{'commands.dart': 'var commands = [];'},
+    );
+    package('app', '', dir: app);
+    packageConfig(<String>['pkg']);
+    PackageCommands commands = PackageCommands(root: app);
+    Map<String, String> libs = commands.libraries();
+    commands.runner.writeAsStringSync('// old runner');
+
+    /// the cache key is the same, but the runner text is old
+    expect(PackageCommands(root: app).libraries(), libs);
+    expect(commands.runner.readAsStringSync(), commands.runnerSource(libs));
+  });
+
   test('a path dependency that changes its key is read again', () {
     package('pkg', '');
     package('app', '', dir: app);

@@ -118,7 +118,17 @@ class PackageCommands {
         (runner.existsSync() || (cache['libraries'] as Map).isEmpty)) {
       _files = Map<String, String>.from(cache['files'] as Map);
       _cacheKey = key;
-      return Map<String, String>.from(cache['libraries'] as Map);
+      Map<String, String> libs = Map<String, String>.from(
+        cache['libraries'] as Map,
+      );
+
+      /// a new dox CLI can make a different runner, so write it again
+      /// when its text is old
+      if (libs.isNotEmpty) {
+        String source = runnerSource(libs);
+        if (runner.readAsStringSync() != source) _writeAtomic(runner, source);
+      }
+      return libs;
     }
     Map<String, String> files = <String, String>{};
     Map<String, String> libs = discover(files: files);
@@ -339,6 +349,7 @@ Future<void> main(List<String> args) async {
   }
   if (matches == 0) {
     print($notFound.replaceAll('{name}', name));
+    exitCode = 1;
     return;
   }
   if (matches > 1) {
