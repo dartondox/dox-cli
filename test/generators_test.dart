@@ -431,6 +431,37 @@ void main() {
     });
   });
 
+  group('generators | doc comments', () {
+    /// `<String>` in a doc comment, outside backticks, is the analyzer
+    /// info unintended_html_in_doc_comment in the app
+    test('no <...> outside backticks', () async {
+      File('pubspec.yaml').writeAsStringSync('name: my_app\n');
+      createController('PostController', true);
+      createModel('Post');
+      createMiddleware('AuthMiddleware');
+      createDto('PostDto');
+      createSerializer('PostSerializer');
+      createFactory('PostFactory');
+      createSeeder('PostSeeder');
+      createJob('SendMailJob');
+      await CommandRegistry.findCommand('make:migration')!
+          .function(<String>['create_posts_table']);
+      RegExp doc = RegExp(r'^\s*///(.*)$');
+      RegExp code = RegExp(r'`[^`]*`');
+      List<String> bad = <String>[];
+      for (FileSystemEntity f in Directory.current.listSync(recursive: true)) {
+        if (f is! File || !f.path.endsWith('.dart')) continue;
+        for (String line in f.readAsLinesSync()) {
+          Match? m = doc.firstMatch(line);
+          if (m != null && m.group(1)!.replaceAll(code, '').contains('<')) {
+            bad.add('${f.path}: $line');
+          }
+        }
+      }
+      expect(bad, isEmpty);
+    });
+  });
+
   group('dox binary', () {
     test('make files through the real cli in a temp dir', () async {
       String bin = '${originalCwd.path}/bin/dox.dart';

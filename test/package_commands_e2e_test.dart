@@ -309,6 +309,7 @@ final List<Late> commands = <Late>[Late()];
     ProcessResult r = await dox(<String>['nope']);
     expect(r.stdout, contains('Could not find a command named "nope"'));
     expect(r.stdout, contains('`dox: commands:`'));
+    expect(r.exitCode, 1);
   });
 
   test('help lists the package commands by package', () async {

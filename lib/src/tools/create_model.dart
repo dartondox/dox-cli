@@ -16,7 +16,7 @@ class $className extends ${className}Generator {
   List<String> get hidden => <String>[];
 
   /// Columns that create(), insert() and update() may take from a map,
-  /// like req.body. Add your columns here, eg. <String>['title', 'body'].
+  /// like req.body. Add your columns here, eg. `<String>['title', 'body']`.
   /// While it is empty, create(req.body) throws MassAssignmentException.
   @override
   List<String> get fillable => <String>[];
