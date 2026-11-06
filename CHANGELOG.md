@@ -1,5 +1,6 @@
 ## Unreleased
 
+- New: `dox queue:clear [queue]`, `dox queue:restart` and `dox queue:prune-failed [--hours=N]`. They run `bin/queue.dart clear|restart|prune-failed`. They need a dox_queue that has these commands. `dox help queue:work` now also lists `--backoff`, `--max-jobs`, `--max-time` and `--memory`.
 - Fix: another `dox` can delete `.dart_tool/dox/commands.dart` while this run reads it. This run crashed then. Now it writes the file again from the cache and goes on.
 - Fix: an unknown command in an app with package commands (like an app with dox_queue) now exits with code 1. Before, it printed "Could not find a command" and exited with 0. An app that already has `.dart_tool/dox/commands.dart` gets the new file on the next run.
 - Fix: the model from `dox make:model` has no `unintended_html_in_doc_comment` info any more. The `<String>[...]` example in its doc comment is now in backticks.
