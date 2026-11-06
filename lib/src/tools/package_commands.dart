@@ -114,8 +114,7 @@ class PackageCommands {
     if (cache['key'] == key &&
         cache['libraries'] is Map &&
         cache['files'] is Map &&
-        _allExist(cache['files'] as Map) &&
-        (runner.existsSync() || (cache['libraries'] as Map).isEmpty)) {
+        _allExist(cache['files'] as Map)) {
       _files = Map<String, String>.from(cache['files'] as Map);
       _cacheKey = key;
       Map<String, String> libs = Map<String, String>.from(
@@ -123,10 +122,17 @@ class PackageCommands {
       );
 
       /// a new dox CLI can make a different runner, so write it again
-      /// when its text is old
+      /// when its text is old. Also write it when it is missing: another
+      /// `dox` can delete it at any time, so do not check first.
       if (libs.isNotEmpty) {
         String source = runnerSource(libs);
-        if (runner.readAsStringSync() != source) _writeAtomic(runner, source);
+        String? old;
+        try {
+          old = runner.readAsStringSync();
+        } on FileSystemException {
+          old = null;
+        }
+        if (old != source) _writeAtomic(runner, source);
       }
       return libs;
     }

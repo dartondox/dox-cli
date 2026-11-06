@@ -448,12 +448,15 @@ void main() {
           .function(<String>['create_posts_table']);
       RegExp doc = RegExp(r'^\s*///(.*)$');
       RegExp code = RegExp(r'`[^`]*`');
+
+      /// only a tag like `<String>` or `</p>`, not `a < b`
+      RegExp tag = RegExp(r'<[A-Za-z/]');
       List<String> bad = <String>[];
       for (FileSystemEntity f in Directory.current.listSync(recursive: true)) {
         if (f is! File || !f.path.endsWith('.dart')) continue;
         for (String line in f.readAsLinesSync()) {
           Match? m = doc.firstMatch(line);
-          if (m != null && m.group(1)!.replaceAll(code, '').contains('<')) {
+          if (m != null && m.group(1)!.replaceAll(code, '').contains(tag)) {
             bad.add('${f.path}: $line');
           }
         }

@@ -214,6 +214,23 @@ void main() {
     expect(commands.runner.readAsStringSync(), commands.runnerSource(libs));
   });
 
+  test('a deleted runner is written again from the cache', () {
+    package(
+      'pkg',
+      withKey,
+      lib: <String, String>{'commands.dart': 'var commands = [];'},
+    );
+    package('app', '', dir: app);
+    packageConfig(<String>['pkg']);
+    PackageCommands commands = PackageCommands(root: app);
+    Map<String, String> libs = commands.libraries();
+
+    /// another `dox` deleted it after the cache was read
+    commands.runner.deleteSync();
+    expect(PackageCommands(root: app).libraries(), libs);
+    expect(commands.runner.readAsStringSync(), commands.runnerSource(libs));
+  });
+
   test('a path dependency that changes its key is read again', () {
     package('pkg', '');
     package('app', '', dir: app);
