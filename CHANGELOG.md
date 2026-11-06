@@ -1,5 +1,7 @@
 ## Unreleased
 
+- New: `dox queue:clear [queue]`, `dox queue:restart` and `dox queue:prune-failed [--hours=N]`. They run `bin/queue.dart clear|restart|prune-failed`. They need a dox_queue that has these commands. `dox help queue:work` now also lists `--backoff`, `--max-jobs`, `--max-time` and `--memory`.
+- Fix: another `dox` can delete `.dart_tool/dox/commands.dart` while this run reads it. This run crashed then. Now it writes the file again from the cache and goes on.
 - Fix: an unknown command in an app with package commands (like an app with dox_queue) now exits with code 1. Before, it printed "Could not find a command" and exited with 0. An app that already has `.dart_tool/dox/commands.dart` gets the new file on the next run.
 - Fix: the model from `dox make:model` has no `unintended_html_in_doc_comment` info any more. The `<String>[...]` example in its doc comment is now in backticks.
 - New: package commands. A package (or the app) adds `dox` commands with the `dox: commands:` key in its pubspec.yaml, like `dox: {commands: package:dox_queue/commands.dart}`. `dox <name>` finds them when the name is not a built-in command. It reads `.dart_tool/package_config.json`, writes `.dart_tool/dox/commands.dart`, and runs it with `dart run`. The exit code of the command is the exit code of `dox`. The file is written again only when package_config.json or a pubspec.yaml change.

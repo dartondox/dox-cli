@@ -482,7 +482,8 @@ class CommandRegistry {
       helpInfo: 'queue:work [flags]',
       description:
           'Run the queue worker. Flags: --queue, --concurrency, --once, '
-          '--tries, --timeout, --sleep, --stop-when-empty',
+          '--tries, --timeout, --sleep, --stop-when-empty, --backoff, '
+          '--max-jobs, --max-time, --memory',
       category: CommandCategory.queue,
       function: (args) async {
         await runQueue('work', args);
@@ -532,6 +533,40 @@ class CommandRegistry {
       maxArgs: 0,
       function: (args) async {
         await runQueue('flush', args);
+      },
+    ),
+
+    CommandDefinition(
+      command: 'queue:clear',
+      helpInfo: 'queue:clear [queue]',
+      description:
+          'Delete all waiting jobs of a queue (default queue: default)',
+      category: CommandCategory.queue,
+      maxArgs: 1,
+      function: (args) async {
+        await runQueue('clear', args);
+      },
+    ),
+
+    CommandDefinition(
+      command: 'queue:restart',
+      helpInfo: 'queue:restart',
+      description: 'Tell the running workers to stop after their current job',
+      category: CommandCategory.queue,
+      maxArgs: 0,
+      function: (args) async {
+        await runQueue('restart', args);
+      },
+    ),
+
+    CommandDefinition(
+      command: 'queue:prune-failed',
+      helpInfo: 'queue:prune-failed [--hours=N]',
+      description: 'Delete failed jobs older than N hours (default 24)',
+      category: CommandCategory.queue,
+      maxArgs: 1,
+      function: (args) async {
+        await runQueue('prune-failed', args);
       },
     ),
 

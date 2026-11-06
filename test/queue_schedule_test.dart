@@ -101,6 +101,9 @@ void main(List<String> args) {
         'queue:retry': <String>['all'],
         'queue:forget': <String>['7'],
         'queue:flush': <String>[],
+        'queue:clear': <String>['emails'],
+        'queue:restart': <String>[],
+        'queue:prune-failed': <String>['--hours=48'],
       };
       for (MapEntry<String, List<String>> c in cases.entries) {
         await run(c.key, c.value);

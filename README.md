@@ -40,7 +40,7 @@ dox s                        # dev server, restarts when a file changes
 | `dox make:model <name> [-m]` | create a model, and with `-m` its migration |
 | `dox make:dto <name>` | create a DTO (typed, checked input) |
 | `dox make:job <name>` | create a queue job |
-| `dox queue:work` | run the queue worker (also `queue:failed`, `queue:retry`, `queue:forget`, `queue:flush`) |
+| `dox queue:work` | run the queue worker (also `queue:failed`, `queue:retry`, `queue:forget`, `queue:flush`, `queue:clear`, `queue:restart`, `queue:prune-failed`) |
 | `dox schedule:work` | run the scheduler (also `schedule:run`, `schedule:list`, `schedule:test`) |
 | `dox make:migration <name> [--sql]` | create a Dart or SQL migration |
 | `dox migration:run` (or `dox migrate`) | run new migrations |
