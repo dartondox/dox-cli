@@ -29,6 +29,8 @@ jobs:
             ../dox-mysql-native/native -> target
       # Builds the native libraries of the clones, for this machine only.
       - run: ci/use-siblings.sh build
+      # CI only: the sqlite3 hook uses the runner's SQLite, no download.
+      - run: ci/system-sqlite.sh pubspec.yaml
       - run: dart pub get
       - run: dart format --output=none --set-exit-if-changed .
       - run: dart analyze --fatal-infos
@@ -38,4 +40,6 @@ jobs:
           v=$(sed -nE 's/^version:[[:space:]]*([^[:space:]]+).*/\1/p' pubspec.yaml)
           grep -qx "const version = '$v';" lib/src/version.dart || { echo "::error::lib/src/version.dart is not $v"; exit 1; }
       - run: dart test
+      # Takes the CI-only hooks block out again. It must not be published.
+      - run: git checkout pubspec.yaml
       - run: dart pub publish --dry-run
