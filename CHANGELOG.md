@@ -1,4 +1,4 @@
-## Unreleased
+## 3.1.0
 
 - New: `dox queue:clear [queue]`, `dox queue:restart` and `dox queue:prune-failed [--hours=N]`. They run `bin/queue.dart clear|restart|prune-failed`. They need a dox_queue that has these commands. `dox help queue:work` now also lists `--backoff`, `--max-jobs`, `--max-time` and `--memory`.
 - Fix: another `dox` can delete `.dart_tool/dox/commands.dart` while this run reads it. This run crashed then. Now it writes the file again from the cache and goes on.
