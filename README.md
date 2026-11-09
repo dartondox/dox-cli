@@ -44,7 +44,7 @@ dox s                        # dev server, restarts when a file changes
 | `dox schedule:work` | run the scheduler (also `schedule:run`, `schedule:list`, `schedule:test`) |
 | `dox make:migration <name> [--sql]` | create a Dart or SQL migration |
 | `dox migration:run` (or `dox migrate`) | run new migrations |
-| `dox migration:rollback [--step=N]` | undo the last batch, or the last N migrations |
+| `dox migration:rollback [--step=N] [--batch=N]` | undo the last batch, the last N migrations, or batch N only |
 | `dox migration:fresh [--seed]` | drop all tables, then run all migrations |
 | `dox make:factory <model>` / `dox make:seeder <name>` | create a model factory or a seeder |
 | `dox db:seed [--class=<name>]` | run the seeders |

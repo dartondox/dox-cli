@@ -130,6 +130,14 @@ void main() {
       expect(File('ran').readAsStringSync(), 'rollback --step=2');
     });
 
+    test('rollback --batch is passed on', () async {
+      confirmDrop = ({required bool force, String danger = ''}) => true;
+      await CommandRegistry.findCommand('migration:rollback')!
+          .function(<String>['--batch', '3', '--force']);
+      expect(exitCode, 0);
+      expect(File('ran').readAsStringSync(), 'rollback --batch=3');
+    });
+
     test('rollback with --step twice stops with an error', () async {
       confirmDrop = ({required bool force, String danger = ''}) => true;
       for (List<String> args in <List<String>>[
@@ -137,6 +145,9 @@ void main() {
         <String>['--step', '2', '--step=3'],
         <String>['--step'],
         <String>['--step', 'x'],
+        <String>['--batch=0'],
+        <String>['--batch=1', '--batch=2'],
+        <String>['--step=1', '--batch=2'],
       ]) {
         exitCode = 0;
         await CommandRegistry.findCommand('migration:rollback')!.function(args);

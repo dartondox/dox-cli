@@ -308,44 +308,62 @@ class CommandRegistry {
 
     CommandDefinition(
       command: 'migration:rollback',
-      helpInfo: 'migration:rollback [--step=<count>] [--force]',
+      helpInfo:
+          'migration:rollback [--step=<count>] [--batch=<number>] [--force]',
       description:
-          'Rollback the last batch, or the last <count> migrations with --step',
+          'Rollback the last batch, the last <count> migrations with --step, '
+          'or one batch with --batch',
       category: CommandCategory.database,
       aliases: ['migrate:rollback'],
       maxArgs: 3,
       function: (args) async {
-        int? step;
+        Map<String, int> options = <String, int>{};
         for (int i = 0; i < args.length; i++) {
           String arg = args[i];
           if (arg == '--force') continue;
+          String? name;
           String? value;
-          if (arg.startsWith('--step=')) {
-            value = arg.substring(7);
-          } else if (arg == '--step' && i + 1 < args.length) {
-            // `--step 2`, with a space
-            value = args[++i];
+          for (String option in <String>['step', 'batch']) {
+            if (arg.startsWith('--$option=')) {
+              name = option;
+              value = arg.substring(option.length + 3);
+            } else if (arg == '--$option' && i + 1 < args.length) {
+              // `--step 2`, with a space
+              name = option;
+              value = args[++i];
+            }
           }
           int? count = value == null ? null : int.tryParse(value);
-          if (count == null || count < 1) {
-            print('Invalid option $arg, use --step=<count> or --force');
+          if (name == null || count == null || count < 1) {
+            print(
+              'Invalid option $arg, use --step=<count>, --batch=<number> '
+              'or --force',
+            );
             exitCode = 1;
             return;
           }
-          if (step != null) {
-            print('--step is given more than once. Give it once.');
+          if (options.containsKey(name)) {
+            print('--$name is given more than once. Give it once.');
             exitCode = 1;
             return;
           }
-          step = count;
+          options[name] = count;
         }
+        if (options.length > 1) {
+          print('Give --step or --batch, not both.');
+          exitCode = 1;
+          return;
+        }
+        int? step = options['step'];
+        int? batch = options['batch'];
         await _migration(
           'rollback',
           <String>[
             if (args.contains('--force')) '--force',
             if (step != null) '--step=$step',
+            if (batch != null) '--batch=$batch',
           ],
-          () => Migrator().rollback(step: step),
+          () => Migrator().rollback(step: step, batch: batch),
           danger: 'This rolls back migrations, so it can drop tables and data.',
         );
       },
@@ -539,8 +557,7 @@ class CommandRegistry {
     CommandDefinition(
       command: 'queue:clear',
       helpInfo: 'queue:clear [queue]',
-      description:
-          'Delete all waiting jobs of a queue (default queue: default)',
+      description: 'Delete the jobs of a queue (default queue: default)',
       category: CommandCategory.queue,
       maxArgs: 1,
       function: (args) async {
@@ -551,7 +568,9 @@ class CommandRegistry {
     CommandDefinition(
       command: 'queue:restart',
       helpInfo: 'queue:restart',
-      description: 'Tell the running workers to stop after their current job',
+      description:
+          'Tell the running workers to stop after their current job. '
+          'Needs a shared cache store',
       category: CommandCategory.queue,
       maxArgs: 0,
       function: (args) async {
@@ -564,8 +583,12 @@ class CommandRegistry {
       helpInfo: 'queue:prune-failed [--hours=N]',
       description: 'Delete failed jobs older than N hours (default 24)',
       category: CommandCategory.queue,
-      maxArgs: 1,
+      maxArgs: 2,
       function: (args) async {
+        // `--hours 48`, with a space, is sent as `--hours=48`
+        if (args.length == 2 && args.first == '--hours') {
+          args = <String>['--hours=${args[1]}'];
+        }
         await runQueue('prune-failed', args);
       },
     ),
