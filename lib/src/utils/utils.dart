@@ -87,3 +87,13 @@ Future<String?> httpGet(String url) async {
     client.close();
   }
 }
+
+/// name of the app package, from `pubspec.yaml`
+String? appPackageName() {
+  File pubspec = File('${Directory.current.path}/pubspec.yaml');
+  if (!pubspec.existsSync()) return null;
+  return RegExp(
+    r'^name:\s*(\S+)',
+    multiLine: true,
+  ).firstMatch(pubspec.readAsStringSync())?.group(1);
+}

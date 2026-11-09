@@ -88,15 +88,16 @@ void main() {
     });
 
     test('serializer imports the matching model', () {
+      File('pubspec.yaml').writeAsStringSync('name: my_app\n');
       expect(createSerializer('BlogPostSerializer'), isTrue);
-      String c = read('lib/app/http/serializers/blog_post.serializer.dart');
+      String c = read('lib/app/serializers/blog_post.serializer.dart');
       expect(
         c,
         contains('class BlogPostSerializer extends Serializer<BlogPost>'),
       );
       expect(
         c,
-        contains("'../../../app/models/blog_post/blog_post.model.dart'"),
+        contains("'package:my_app/app/models/blog_post/blog_post.model.dart'"),
       );
     });
   });
@@ -120,6 +121,7 @@ void main() {
       expect(createMiddleware('Auth'), isFalse);
       expect(createDto('User'), isTrue);
       expect(createDto('User'), isFalse);
+      File('pubspec.yaml').writeAsStringSync('name: my_app\n');
       expect(createSerializer('User'), isTrue);
       expect(createSerializer('User'), isFalse);
     });

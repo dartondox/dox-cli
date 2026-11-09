@@ -1,3 +1,7 @@
+## Unreleased
+
+- Change: `dox make:serializer` now makes the file in `lib/app/serializers/` (before: `lib/app/http/serializers/`). Serializers are used by more than HTTP (MCP, websocket). The model import in the file is now a package import: `package:<app>/app/models/<name>/<name>.model.dart`. The app name comes from `pubspec.yaml`. Without a name, the command prints a message and stops (same as `dox make:factory`).
+
 ## 3.1.0
 
 - New: `dox queue:clear [queue]`, `dox queue:restart` and `dox queue:prune-failed [--hours=N]`. They run `bin/queue.dart clear|restart|prune-failed`. They need a dox_queue that has these commands. `dox help queue:work` now also lists `--backoff`, `--max-jobs`, `--max-time` and `--memory`.
