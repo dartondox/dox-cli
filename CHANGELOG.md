@@ -1,3 +1,7 @@
+## Unreleased
+
+- New: `dox migration:rollback --batch=3` (or `--batch 3`) rolls back only the migrations of batch 3. It is passed on to `bin/migrate.dart`, like `--step`. It needs a dox_migration with `rollback --batch`. Give `--step` or `--batch`, not both.
+
 ## 3.1.1
 
 - Change: `dox make:serializer` now makes the file in `lib/app/serializers/` (before: `lib/app/http/serializers/`). Serializers are used by more than HTTP (MCP, websocket). The model import in the file is now a package import: `package:<app>/app/models/<name>/<name>.model.dart`. The app name comes from `pubspec.yaml`. Without a name, the command prints a message and stops (same as `dox make:factory`).
