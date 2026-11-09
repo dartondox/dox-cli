@@ -141,9 +141,10 @@ void main() {
       Directory('lib/app/http/controllers').createSync(recursive: true);
       Directory('lib/app/http/middleware').createSync(recursive: true);
       Directory('lib/app/dtos').createSync(recursive: true);
-      Directory('lib/app/http/serializers').createSync(recursive: true);
+      Directory('lib/app/serializers').createSync(recursive: true);
       Directory('lib/app/ws/controllers').createSync(recursive: true);
       Directory('db/migration').createSync(recursive: true);
+      File('pubspec.yaml').writeAsStringSync('name: my_app\n');
     });
 
     tearDown(() {
@@ -250,9 +251,7 @@ void main() {
       expect(() => command!.function(['UserSerializer']), returnsNormally);
 
       // Check if file was created
-      final serializerFile = File(
-        'lib/app/http/serializers/user.serializer.dart',
-      );
+      final serializerFile = File('lib/app/serializers/user.serializer.dart');
       expect(serializerFile.existsSync(), isTrue);
 
       // Check file content

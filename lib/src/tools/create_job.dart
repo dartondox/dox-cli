@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import '../utils/utils.dart';
-import 'create_factory.dart';
 
 String _getSample(String className) {
   return '''
