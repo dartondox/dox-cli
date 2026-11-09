@@ -557,8 +557,7 @@ class CommandRegistry {
     CommandDefinition(
       command: 'queue:clear',
       helpInfo: 'queue:clear [queue]',
-      description:
-          'Delete all waiting jobs of a queue (default queue: default)',
+      description: 'Delete the jobs of a queue (default queue: default)',
       category: CommandCategory.queue,
       maxArgs: 1,
       function: (args) async {
@@ -569,7 +568,9 @@ class CommandRegistry {
     CommandDefinition(
       command: 'queue:restart',
       helpInfo: 'queue:restart',
-      description: 'Tell the running workers to stop after their current job',
+      description:
+          'Tell the running workers to stop after their current job. '
+          'Needs a shared cache store',
       category: CommandCategory.queue,
       maxArgs: 0,
       function: (args) async {
@@ -582,8 +583,12 @@ class CommandRegistry {
       helpInfo: 'queue:prune-failed [--hours=N]',
       description: 'Delete failed jobs older than N hours (default 24)',
       category: CommandCategory.queue,
-      maxArgs: 1,
+      maxArgs: 2,
       function: (args) async {
+        // `--hours 48`, with a space, is sent as `--hours=48`
+        if (args.length == 2 && args.first == '--hours') {
+          args = <String>['--hours=${args[1]}'];
+        }
         await runQueue('prune-failed', args);
       },
     ),

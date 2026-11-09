@@ -1,6 +1,8 @@
 ## Unreleased
 
 - New: `dox migration:rollback --batch=3` (or `--batch 3`) rolls back only the migrations of batch 3. It is passed on to `bin/migrate.dart`, like `--step`. It needs a dox_migration with `rollback --batch`. Give `--step` or `--batch`, not both.
+- Fix: `dox queue:prune-failed --hours 48` (with a space) now works, like `--hours=48`. Before, it was refused.
+- Fix: the help of `dox queue:clear` now says "Delete the jobs of a queue". With Redis it also deletes the delayed and reserved jobs, not only the waiting ones. The help of `dox queue:restart` now says it needs a shared cache store.
 
 ## 3.1.1
 

@@ -115,6 +115,12 @@ void main(List<String> args) {
       }
     });
 
+    test('queue:prune-failed --hours 48 (with a space) works', () async {
+      fakeScript('bin/queue.dart');
+      await run('queue:prune-failed', <String>['--hours', '48']);
+      expect(File('args.txt').readAsStringSync(), 'prune-failed|--hours=48');
+    });
+
     test('argument counts', () {
       expect(
         CommandRegistry.findCommand('queue:retry')!.validateArgs(<String>[]),
