@@ -272,6 +272,15 @@ void main() {
       await run(<String>['create_posts_table']);
       await run(<String>['add_a_really_long_column_name_here_to_posts_table']);
       expect(formatted(), isTrue);
+
+      /// names of every length around the 80-character limit, and more
+      /// than 9 migrations (`m10` is one character longer than `m9`)
+      for (int length = 20; length <= 70; length++) {
+        File('db/migration/${'a' * length}.dart')
+            .writeAsStringSync('class A extends Migration {}');
+      }
+      writeMigrationRegistry();
+      expect(formatted(), isTrue);
     });
 
     test('makes bin/migrate.dart once', () async {
