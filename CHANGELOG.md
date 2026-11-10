@@ -1,9 +1,8 @@
 ## Unreleased
 
 - New: `dox migration:rollback --batch=3` (or `--batch 3`) rolls back only the migrations of batch 3. It is passed on to `bin/migrate.dart`, like `--step`. It needs a dox_migration with `rollback --batch`. Give `--step` or `--batch`, not both.
-- Fix: `dox queue:prune-failed --hours 48` (with a space) now works, like `--hours=48`. Before, it was refused.
+- Fix: `dox queue:prune-failed --hours 48` (with a space) now works, like `--hours=48`. Before, it was refused. Any other second word still prints the usage and stops with exit code 1.
 - Fix: `dox make:migration` wrote `db/migration/migrations.dart` in a shape that `dart format` changed later. Now the file is written in `dart format` shape. Short entries are on one line, and long imports are split.
-- Fix: `dox queue:prune-failed --hours=48 extra` passed the extra word on to dox_queue. Now it prints the usage and stops with exit code 1.
 - Fix: the help of `dox queue:clear` now says "Delete the jobs of a queue". With Redis it also deletes the delayed and reserved jobs, not only the waiting ones. The help of `dox queue:restart` now says it needs a shared cache store.
 
 ## 3.1.1
