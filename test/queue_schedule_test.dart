@@ -121,6 +121,14 @@ void main(List<String> args) {
       expect(File('args.txt').readAsStringSync(), 'prune-failed|--hours=48');
     });
 
+    test('queue:prune-failed stops on an extra word', () async {
+      fakeScript('bin/queue.dart');
+      String out = await run('queue:prune-failed', <String>['--hours=48', 'x']);
+      expect(out, contains('Usage: queue:prune-failed [--hours=N]'));
+      expect(File('args.txt').existsSync(), isFalse);
+      expect(exitCode, 1);
+    });
+
     test('argument counts', () {
       expect(
         CommandRegistry.findCommand('queue:retry')!.validateArgs(<String>[]),

@@ -589,6 +589,13 @@ class CommandRegistry {
         if (args.length == 2 && args.first == '--hours') {
           args = <String>['--hours=${args[1]}'];
         }
+        // maxArgs is 2 only for `--hours 48`; any other second word stops
+        if (args.length > 1) {
+          print('Invalid arguments for command "queue:prune-failed".');
+          print('Usage: queue:prune-failed [--hours=N]');
+          exitCode = 1;
+          return;
+        }
         await runQueue('prune-failed', args);
       },
     ),

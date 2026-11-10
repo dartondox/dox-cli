@@ -112,15 +112,20 @@ void writeMigrationRegistry() {
       continue;
     }
     i++;
-    imports.writeln("import '$fileName' as m$i;");
 
-    /// one argument per line, so the file is already `dart format`ed
-    entries
-      ..writeln('  MigrationEntry(')
-      ..writeln("    '$name',")
-      ..writeln('    m$i.${match.group(1)}(),')
-      ..writeln('  ),');
+    /// same layout as `dart format`: one line when it fits in 80 chars,
+    /// else `as` and each argument go on their own line
+    String import = "import '$fileName' as m$i;";
+    if (import.length > 80) import = "import '$fileName'\n    as m$i;";
+    imports.writeln(import);
+    String entry = "  MigrationEntry('$name', m$i.${match.group(1)}()),";
+    if (entry.length > 80) {
+      entry =
+          "  MigrationEntry(\n    '$name',\n    m$i.${match.group(1)}(),\n  ),";
+    }
+    entries.writeln(entry);
   }
+  if (imports.isNotEmpty) imports.writeln();
 
   File registry = File('${dir.path}/migrations.dart');
   String source =
@@ -129,10 +134,8 @@ void writeMigrationRegistry() {
 // Do not edit, it is made again from the files in this folder.
 import 'package:dox_migration/dox_migration.dart';
 
-$imports
-/// all Dart migrations of db/migration, sorted by name
-final List<MigrationEntry> migrations = <MigrationEntry>[
-$entries];
+$imports/// all Dart migrations of db/migration, sorted by name
+final List<MigrationEntry> migrations = <MigrationEntry>[${entries.isEmpty ? '' : '\n$entries'}];
 ''';
   if (registry.existsSync() && registry.readAsStringSync() == source) return;
   registry.createSync(recursive: true);

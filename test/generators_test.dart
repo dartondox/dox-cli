@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dox/src/command_registry.dart';
 import 'package:dox/src/tools/create_controller.dart';
 import 'package:dox/src/tools/create_middleware.dart';
+import 'package:dox/src/tools/create_migration.dart';
 import 'package:dox/src/tools/create_model.dart';
 import 'package:dox/src/tools/create_dto.dart';
 import 'package:dox/src/tools/create_factory.dart';
@@ -239,11 +240,38 @@ void main() {
       String registry = read('db/migration/migrations.dart');
       expect(registry, contains("import '2020_01_01_000000_a.dart' as m1;"));
       expect(registry, contains("import '2020_01_02_000000_b.dart' as m2;"));
-      expect(registry, contains("    '2020_01_01_000000_a',\n    m1.A(),\n"));
-      expect(registry, contains("    '2020_01_02_000000_b',\n    m2.B(),\n"));
+      expect(
+        registry,
+        contains("  MigrationEntry('2020_01_01_000000_a', m1.A()),"),
+      );
+      expect(
+        registry,
+        contains("  MigrationEntry('2020_01_02_000000_b', m2.B()),"),
+      );
       expect(registry, contains('m3.CreatePostsTable()'));
       expect(registry, isNot(contains('skip')));
       expect(registry, isNot(contains('migrations.dart')));
+    });
+
+    test('registry is already in `dart format` shape', () async {
+      bool formatted() =>
+          Process.runSync(Platform.resolvedExecutable, <String>[
+            'format',
+            '--output=none',
+            '--set-exit-if-changed',
+            'db/migration/migrations.dart',
+          ]).exitCode ==
+          0;
+
+      /// no Dart migrations: an empty list
+      Directory('db/migration').createSync(recursive: true);
+      writeMigrationRegistry();
+      expect(formatted(), isTrue);
+
+      /// a short name fits on one line, a long one is split
+      await run(<String>['create_posts_table']);
+      await run(<String>['add_a_really_long_column_name_here_to_posts_table']);
+      expect(formatted(), isTrue);
     });
 
     test('makes bin/migrate.dart once', () async {
