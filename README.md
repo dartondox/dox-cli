@@ -41,7 +41,7 @@ dox s                        # dev server, restarts when a file changes
 | `dox make:dto <name>` | create a DTO (typed, checked input) |
 | `dox make:job <name>` | create a queue job |
 | `dox queue:work` | run the queue worker (also `queue:failed`, `queue:retry`, `queue:forget`, `queue:flush`, `queue:clear`, `queue:restart`, `queue:prune-failed`) |
-| `dox schedule:work` | run the scheduler (also `schedule:run`, `schedule:list`, `schedule:test`) |
+| `dox schedule:work` | run the scheduler (also `schedule:run`, `schedule:list`, `schedule:test`, `schedule:clear-cache`) |
 | `dox make:migration <name> [--sql]` | create a Dart or SQL migration |
 | `dox migration:run` (or `dox migrate`) | run new migrations |
 | `dox migration:rollback [--step=N] [--batch=N]` | undo the last batch, the last N migrations, or batch N only |
