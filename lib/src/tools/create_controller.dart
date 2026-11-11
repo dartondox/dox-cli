@@ -44,7 +44,8 @@ String _getResourceSample(
     _method(
       withModel
           ? 'POST /resource\n'
-                '  /// create() takes only the fillable columns of $m.'
+                '  /// create() takes only the fillable columns of $m.\n'
+                '  /// Set fillable in the $m model first. While it is empty, this throws.'
           : 'POST /resource',
       'store(DoxRequest req)',
       <String>[if (withModel) 'return $m().create(req.body);'],
@@ -61,9 +62,17 @@ String _getResourceSample(
       _method('GET /resource/{id}/edit', 'edit(DoxRequest req, $id)', <String>[
         if (withModel) 'return $v;',
       ]),
-    _method('PUT|PATCH /resource/{id}', 'update(DoxRequest req, $id)', <String>[
-      if (withModel) ...<String>['await $v.update(req.body);', 'return $v;'],
-    ]),
+    _method(
+      withModel
+          ? 'PUT|PATCH /resource/{id}\n'
+                '  /// update() takes only the fillable columns of $m.\n'
+                '  /// Set fillable in the $m model first. While it is empty, this throws.'
+          : 'PUT|PATCH /resource/{id}',
+      'update(DoxRequest req, $id)',
+      <String>[
+        if (withModel) ...<String>['await $v.update(req.body);', 'return $v;'],
+      ],
+    ),
     _method(
       withModel
           ? 'DELETE /resource/{id}'
