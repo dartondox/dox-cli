@@ -217,6 +217,7 @@ Future<void> main(List<String> args) async {
           'schedule:run': <String>[],
           'schedule:list': <String>[],
           'schedule:test': <String>['report'],
+          'schedule:clear-cache': <String>[],
         };
         for (MapEntry<String, List<String>> c in cases.entries) {
           exitCode = 0;

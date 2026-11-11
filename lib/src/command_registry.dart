@@ -698,6 +698,17 @@ class CommandRegistry {
         await runSchedule('test', args);
       },
     ),
+
+    CommandDefinition(
+      command: 'schedule:clear-cache',
+      helpInfo: 'schedule:clear-cache',
+      description: 'Remove the withoutOverlapping() locks left by a crash',
+      category: CommandCategory.schedule,
+      maxArgs: 0,
+      function: (args) async {
+        await runSchedule('clear-cache', args);
+      },
+    ),
   ];
 
   static CommandDefinition? findCommand(String command) {
