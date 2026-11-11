@@ -86,28 +86,28 @@ CommandDefinition(
 // Command with required arguments
 CommandDefinition(
   command: 'make:model',
-  helpInfo: 'make:model <model_name>',
-  description: 'Create a new model',
+  helpInfo: 'make:model <model_name> [-m] [-c] [-r] [-f] [-s] [-a] [--api]',
+  description: 'Create a new model. -m migration, -c controller, -r resource '
+      'controller, --api API resource controller, -f factory, -s seeder, '
+      '-a all of them (-m -f -s -r). Join short flags: -mcr',
   category: CommandCategory.generation,
   minArgs: 1,
-  maxArgs: 1,
   function: (args) async {
-    createModel(args[0]);
+    // parseArgs reads the flags. See lib/src/command_registry.dart.
   },
 ),
 
 // Command with optional arguments
 CommandDefinition(
   command: 'make:controller',
-  helpInfo: 'make:controller <controller_name> [-r]',
-  description: 'Create a new controller',
-  category: CommandCategory.generation,
+  helpInfo: 'make:controller <controller_name> [-r|--resource] [--api] [--model=<model>]',
+  description: 'Create a new controller. -r or --resource: a resource '
+      'controller. --api: a resource controller without create and edit. '
+      '--model=Post: the actions use the Post model',
+  category: CommandCategory.development,
   minArgs: 1,
-  maxArgs: 2,
   function: (args) async {
-    final controllerName = args[0];
-    final isResource = args.length >= 2 && args[1] == '-r';
-    createController(controllerName, isResource);
+    // parseArgs reads the flags. See lib/src/command_registry.dart.
   },
 ),
 
@@ -167,10 +167,10 @@ dox help make:controller
 Output:
 ```
 Command: make:controller
-Usage: dox make:controller <controller_name> [-r]
-Description: Create a new controller
-Category: Generation
-Arguments: 1 to 2 arguments
+Usage: dox make:controller <controller_name> [-r|--resource] [--api] [--model=<model>]
+Description: Create a new controller. -r or --resource: a resource controller. --api: a resource controller without create and edit. --model=Post: the actions use the Post model
+Category: Development
+Arguments: at least 1 argument
 ```
 
 ### 6. Benefits of This System

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dox/src/command_registry.dart';
@@ -185,6 +186,366 @@ void main() {
       exitCode = 0;
       expect(Directory('lib').existsSync(), isFalse);
     });
+  });
+
+  group('make:model flags', () {
+    Future<void> run(List<String> args) =>
+        CommandRegistry.findCommand('make:model')!.function(args);
+
+    const String controller = 'lib/app/http/controllers/post.controller.dart';
+    const String factory = 'db/factories/post.factory.dart';
+    const String seeder = 'db/seeders/post.seeder.dart';
+
+    bool exists(String path) => File(path).existsSync();
+    bool hasMigration() =>
+        Directory('db/migration').existsSync() &&
+        Directory('db/migration').listSync().any(
+          (FileSystemEntity f) => f.path.endsWith('_create_posts_table.dart'),
+        );
+
+    /// what was made, besides the model
+    Map<String, bool> made() => <String, bool>{
+      'migration': hasMigration(),
+      'controller': exists(controller),
+      'factory': exists(factory),
+      'seeder': exists(seeder),
+    };
+
+    setUp(() {
+      File('pubspec.yaml').writeAsStringSync('name: my_app\n');
+    });
+
+    tearDown(() {
+      exitCode = 0;
+    });
+
+    test('-c makes a plain controller', () async {
+      await run(<String>['Post', '-c']);
+      expect(made(), <String, bool>{
+        'migration': false,
+        'controller': true,
+        'factory': false,
+        'seeder': false,
+      });
+      String c = read(controller);
+      expect(c, contains('class PostController {'));
+      expect(c, contains("Route.get('path', (PostController c) => c.index);"));
+    });
+
+    test('-r makes a resource controller that uses the model', () async {
+      await run(<String>['Post', '-r']);
+      String c = read(controller);
+      expect(c, contains("Route.resource('path', PostController);"));
+      expect(c, contains('package:my_app/app/models/post/post.model.dart'));
+      expect(c, contains('show(DoxRequest req, Post post)'));
+      expect(c, contains('edit(DoxRequest req, Post post)'));
+      expect(made()['migration'], isFalse);
+    });
+
+    test('--api makes a resource controller without create and edit', () async {
+      await run(<String>['Post', '--api']);
+      String c = read(controller);
+      expect(c, contains('return Post().all();'));
+      expect(c, isNot(contains('create(DoxRequest req)')));
+      expect(c, isNot(contains('edit(DoxRequest')));
+    });
+
+    test('-f makes a factory, -s a seeder', () async {
+      await run(<String>['Post', '-f']);
+      expect(made(), <String, bool>{
+        'migration': false,
+        'controller': false,
+        'factory': true,
+        'seeder': false,
+      });
+      expect(
+        read(factory),
+        contains('class PostFactory extends Factory<Post>'),
+      );
+      Directory('lib').deleteSync(recursive: true);
+      await run(<String>['Post', '-s']);
+      expect(read(seeder), contains('class PostSeeder extends Seeder'));
+      expect(File('bin/seed.dart').existsSync(), isTrue);
+    });
+
+    test('-mcr: migration and a resource controller', () async {
+      await run(<String>['Post', '-mcr']);
+      expect(made(), <String, bool>{
+        'migration': true,
+        'controller': true,
+        'factory': false,
+        'seeder': false,
+      });
+      expect(read(controller), contains('store(DoxRequest req)'));
+      expect(read(controller), contains('Post().create(req.body)'));
+    });
+
+    test('-mfs: migration, factory and seeder', () async {
+      await run(<String>['Post', '-mfs']);
+      expect(made(), <String, bool>{
+        'migration': true,
+        'controller': false,
+        'factory': true,
+        'seeder': true,
+      });
+    });
+
+    test('flags can be apart and in any order', () async {
+      await run(<String>['-s', 'Post', '-f', '-m']);
+      expect(made(), <String, bool>{
+        'migration': true,
+        'controller': false,
+        'factory': true,
+        'seeder': true,
+      });
+    });
+
+    for (List<String> all in <List<String>>[
+      <String>['-a'],
+      <String>['--all'],
+      <String>['--migration', '--factory', '--seed', '--resource'],
+    ]) {
+      test('$all makes everything', () async {
+        await run(<String>['Post', ...all]);
+        expect(made(), <String, bool>{
+          'migration': true,
+          'controller': true,
+          'factory': true,
+          'seeder': true,
+        });
+        expect(
+          read(controller),
+          contains('destroy(DoxRequest req, Post post)'),
+        );
+      });
+    }
+
+    test('--controller is -c', () async {
+      await run(<String>['Post', '--controller']);
+      expect(read(controller), contains('Future<dynamic> index(DoxRequest'));
+      expect(read(controller), isNot(contains('store(')));
+    });
+
+    test('-a makes the same files as the single commands', () async {
+      await run(<String>['Post', '-a']);
+      Map<String, String> withFlags = <String, String>{
+        for (String f in <String>[controller, factory, seeder]) f: read(f),
+      };
+      Directory('lib').deleteSync(recursive: true);
+      Directory('db').deleteSync(recursive: true);
+      await CommandRegistry.findCommand('make:factory')!
+          .function(<String>['Post']);
+      await CommandRegistry.findCommand('make:seeder')!
+          .function(<String>['Post']);
+      await CommandRegistry.findCommand('make:controller')!
+          .function(<String>['Post', '-r', '--model=Post']);
+      for (MapEntry<String, String> e in withFlags.entries) {
+        expect(read(e.key), e.value, reason: e.key);
+      }
+    });
+
+    test('an existing model: nothing else is made', () async {
+      createModel('Post');
+      await run(<String>['Post', '-a']);
+      expect(made().values, everyElement(isFalse));
+    });
+
+    for (List<String> bad in <List<String>>[
+      <String>['Post', '-mx'],
+      <String>['Post', '-x'],
+      <String>['Post', '--foo'],
+      <String>['Post', '--migration=yes'],
+      <String>['Post', '-'],
+      <String>['Post', 'extra'],
+    ]) {
+      test('$bad: error, exit code 1, nothing made', () async {
+        await run(bad);
+        expect(exitCode, 1);
+        expect(Directory('lib').existsSync(), isFalse);
+        expect(Directory('db').existsSync(), isFalse);
+      });
+    }
+  });
+
+  group('make:controller flags', () {
+    Future<void> run(List<String> args) =>
+        CommandRegistry.findCommand('make:controller')!.function(args);
+
+    const String file = 'lib/app/http/controllers/photo.controller.dart';
+
+    /// the lines that `make:controller [args]` prints
+    Future<List<String>> runPrinted(List<String> args) async {
+      List<String> lines = <String>[];
+      await runZoned(
+        () => run(args),
+        zoneSpecification: ZoneSpecification(
+          print: (Zone self, ZoneDelegate parent, Zone zone, String line) {
+            lines.add(line);
+          },
+        ),
+      );
+      return lines;
+    }
+
+    setUp(() {
+      File('pubspec.yaml').writeAsStringSync('name: my_app\n');
+    });
+
+    tearDown(() {
+      exitCode = 0;
+    });
+
+    test('--resource is the same as -r', () async {
+      await run(<String>['Photo', '-r']);
+      String short = read(file);
+      File(file).deleteSync();
+      await run(<String>['Photo', '--resource']);
+      expect(read(file), short);
+      expect(short, contains('create(DoxRequest req)'));
+      expect(short, contains('edit(DoxRequest req, int id)'));
+      expect(short, isNot(contains('/app/models/')));
+    });
+
+    test('--api: resource actions without create and edit', () async {
+      await run(<String>['Photo', '--api']);
+      String c = read(file);
+      for (String action in <String>[
+        'index(DoxRequest req)',
+        'store(DoxRequest req)',
+        'show(DoxRequest req, int id)',
+        'update(DoxRequest req, int id)',
+        'destroy(DoxRequest req, int id)',
+      ]) {
+        expect(c, contains(action));
+      }
+      expect(c, isNot(contains('create(DoxRequest req)')));
+      expect(c, isNot(contains('edit(DoxRequest')));
+      expect(c, contains("Route.resource('path', PhotoController);"));
+    });
+
+    for (List<String> model in <List<String>>[
+      <String>['--model=BlogPost'],
+      <String>['--model', 'BlogPost'],
+    ]) {
+      test('$model: a resource controller that uses the model', () async {
+        await run(<String>['Photo', ...model]);
+        String c = read(file);
+        expect(
+          c,
+          startsWith(
+            "import 'package:dox_core/dox_core.dart';\n"
+            "import 'package:my_app/app/models/blog_post/blog_post.model.dart';\n",
+          ),
+        );
+        expect(c, contains('return BlogPost().all();'));
+        expect(c, contains('return BlogPost().create(req.body);'));
+        expect(
+          c,
+          contains(
+            'show(DoxRequest req, BlogPost blogPost) async {\n    return blogPost;',
+          ),
+        );
+        expect(c, contains('edit(DoxRequest req, BlogPost blogPost)'));
+        expect(c, contains('update(DoxRequest req, BlogPost blogPost)'));
+        expect(c, contains('await blogPost.update(req.body);'));
+        expect(c, contains('await blogPost.delete();'));
+        expect(
+          c,
+          contains(
+            '/// Set fillable in the BlogPost model first. '
+            'While it is empty, this throws.\n'
+            '  Future<dynamic> store(',
+          ),
+        );
+        expect(
+          c,
+          contains(
+            '/// Set fillable in the BlogPost model first. '
+            'While it is empty, this throws.\n'
+            '  Future<dynamic> update(',
+          ),
+        );
+      });
+    }
+
+    test('the name count error reads well', () async {
+      List<String> extra = await runPrinted(<String>['Photo', 'Pen']);
+      expect(
+        extra.single,
+        '\x1B[31mmake:controller takes 1 name, got 2: Photo Pen. '
+        'Run `dox help make:controller` to see the options.\x1B[0m',
+      );
+      List<String> none = await runPrinted(<String>['-r']);
+      expect(
+        none.single,
+        '\x1B[31mmake:controller takes 1 name, got 0. '
+        'Run `dox help make:controller` to see the options.\x1B[0m',
+      );
+    });
+
+    test('--model warns when the model file is missing', () async {
+      List<String> lines = await runPrinted(<String>['Photo', '--model=Post']);
+      expect(
+        lines.any(
+          (String l) =>
+              l.contains('The Post model does not exist yet.') &&
+              l.contains('Run `dox make:model Post`.') &&
+              l.startsWith('\x1B[33m'),
+        ),
+        isTrue,
+        reason: '$lines',
+      );
+    });
+
+    test('--model does not warn when the model file exists', () async {
+      Directory('lib/app/models/post').createSync(recursive: true);
+      File('lib/app/models/post/post.model.dart').writeAsStringSync('');
+      List<String> lines = await runPrinted(<String>['Photo', '--model=Post']);
+      expect(lines.any((String l) => l.contains('does not exist')), isFalse);
+    });
+
+    test(
+      'a plain resource controller names its own model in the hint',
+      () async {
+        await run(<String>['Blog', '-r']);
+        expect(
+          read('lib/app/http/controllers/blog.controller.dart'),
+          contains("`if (await Blog().where('id', id).delete() == 0) "),
+        );
+      },
+    );
+
+    test('--api --model: no create and edit, uses the model', () async {
+      await run(<String>['Photo', '--api', '--model=Post']);
+      String c = read(file);
+      expect(c, contains('show(DoxRequest req, Post post)'));
+      expect(c, isNot(contains('edit(DoxRequest')));
+    });
+
+    test('--model needs the app name', () async {
+      File('pubspec.yaml').deleteSync();
+      await run(<String>['Photo', '--model=Post']);
+      expect(exitCode, 1);
+      expect(File(file).existsSync(), isFalse);
+    });
+
+    for (List<String> bad in <List<String>>[
+      <String>['Photo', '--foo'],
+      <String>['Photo', '-x'],
+      <String>['Photo', '-rx'],
+      <String>['Photo', '--model'],
+      <String>['Photo', '--model='],
+      <String>['Photo', '--model', '-r'],
+      <String>['Photo', '--model=../x'],
+      <String>['Photo', '--resource=yes'],
+      <String>['Photo', 'Extra'],
+    ]) {
+      test('$bad: error, exit code 1, nothing made', () async {
+        await run(bad);
+        expect(exitCode, 1);
+        expect(Directory('lib').existsSync(), isFalse);
+      });
+    }
   });
 
   group('make:migration', () {

@@ -56,9 +56,9 @@ void main() {
       // Test invalid arguments (too few)
       expect(command.validateArgs([]), isFalse);
 
-      // Test invalid arguments (too many)
+      // Flags are checked by the command itself, see generators_test.dart
       expect(command.validateArgs(['User', '-m']), isTrue);
-      expect(command.validateArgs(['User', '-m', 'extra']), isFalse);
+      expect(command.validateArgs(['User', '-m', '-c', '-r', '-f']), isTrue);
     });
 
     test('migration commands have laravel style aliases', () {
@@ -289,7 +289,6 @@ void main() {
       // Test that invalid arguments are handled
       expect(command!.validateArgs([]), isFalse);
       expect(command.validateArgs(['User', '-m']), isTrue);
-      expect(command.validateArgs(['User', '-m', 'extra']), isFalse);
     });
   });
 

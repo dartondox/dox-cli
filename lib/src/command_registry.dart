@@ -17,6 +17,7 @@ import 'package:dox/src/tools/help.dart';
 import 'package:dox/src/tools/openapi_generate.dart';
 import 'package:dox/src/tools/server_serve.dart';
 import 'package:dox/src/tools/update_dox.dart';
+import 'package:dox/src/utils/args.dart';
 import 'package:dox/src/utils/confirm_drop.dart';
 import 'package:dox/src/utils/run_script.dart';
 import 'package:dox/src/utils/utils.dart';
@@ -79,30 +80,67 @@ class CommandRegistry {
     // Create model
     CommandDefinition(
       command: 'make:model',
-      helpInfo: 'make:model <model_name> [-m|--migration]',
+      helpInfo: 'make:model <model_name> [-m] [-c] [-r] [-f] [-s] [-a] [--api]',
       description:
-          'Create a new model, and with -m a create_<table>_table migration',
+          'Create a new model. -m migration, -c controller, -r resource '
+          'controller, --api API resource controller, -f factory, -s seeder, '
+          '-a all of them (-m -f -s -r). Join short flags: -mcr',
       category: CommandCategory.generation,
       aliases: ['create:model'],
       minArgs: 1,
-      maxArgs: 2,
       function: (args) async {
-        if (args.length < 2) {
-          createModel(args[0]);
-          return;
-        }
-        if (args[1] != '-m' && args[1] != '--migration') {
-          print('Invalid option ${args[1]}, use -m or --migration');
-          exitCode = 1;
-          return;
+        ParsedArgs? parsed = parseArgs(
+          'make:model',
+          args,
+          short: const <String, String>{
+            'm': 'migration',
+            'c': 'controller',
+            'r': 'resource',
+            'f': 'factory',
+            's': 'seed',
+            'a': 'all',
+          },
+          flags: const <String>{
+            'migration',
+            'controller',
+            'resource',
+            'api',
+            'factory',
+            'seed',
+            'all',
+          },
+        );
+        if (parsed == null) return;
+        String name = parsed.names.first;
+        Set<String> flags = parsed.flags;
+        if (flags.contains('all')) {
+          flags.addAll(<String>['migration', 'factory', 'seed', 'resource']);
         }
 
         /// `BlogPost` => table `blog_posts`, same guess as `constrained()`
         String table = ForeignIdColumnDefinition.guessTable(
-          pascalToSnake(args[0]),
+          pascalToSnake(name),
         );
-        if (createModel(args[0], table: table)) {
+
+        /// like Laravel: when the model exists, nothing else is made
+        if (!createModel(name, table: table)) return;
+
+        /// the same files as the single commands make for this model:
+        /// make:factory, make:migration, make:seeder and make:controller
+        if (flags.contains('factory')) createFactory(name);
+        if (flags.contains('migration')) {
           createMigration('create_${table}_table');
+        }
+        if (flags.contains('seed')) createSeeder(name);
+        bool api = flags.contains('api');
+        bool resource = api || flags.contains('resource');
+        if (resource || flags.contains('controller')) {
+          createController(
+            name,
+            resource,
+            api: api,
+            model: resource ? name : null,
+          );
         }
       },
     ),
@@ -175,15 +213,31 @@ class CommandRegistry {
     CommandDefinition(
       command: 'make:controller',
       aliases: ['create:controller'],
-      helpInfo: 'make:controller <controller_name> [-r]',
-      description: 'Create a new controller',
+      helpInfo:
+          'make:controller <controller_name> [-r|--resource] [--api] '
+          '[--model=<model>]',
+      description:
+          'Create a new controller. -r or --resource: a resource controller. '
+          '--api: a resource controller without create and edit. '
+          '--model=Post: the actions use the Post model',
       category: CommandCategory.development,
       minArgs: 1,
-      maxArgs: 2,
       function: (args) async {
-        final controllerName = args[0];
-        final isResource = args.length >= 2 && args[1] == '-r';
-        createController(controllerName, isResource);
+        ParsedArgs? parsed = parseArgs(
+          'make:controller',
+          args,
+          short: const <String, String>{'r': 'resource'},
+          flags: const <String>{'resource', 'api'},
+          options: const <String>{'model'},
+        );
+        if (parsed == null) return;
+        String? model = parsed.options['model'];
+
+        /// like Laravel: --api and --model make a resource controller
+        bool api = parsed.flags.contains('api');
+        bool resource =
+            api || model != null || parsed.flags.contains('resource');
+        createController(parsed.names.first, resource, api: api, model: model);
       },
     ),
 
