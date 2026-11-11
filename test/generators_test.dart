@@ -236,8 +236,8 @@ void main() {
       String c = read(controller);
       expect(c, contains("Route.resource('path', PostController);"));
       expect(c, contains('package:my_app/app/models/post/post.model.dart'));
-      expect(c, contains('return Post().findOrFail(id);'));
-      expect(c, contains('edit(DoxRequest req, int id)'));
+      expect(c, contains('show(DoxRequest req, Post post)'));
+      expect(c, contains('edit(DoxRequest req, Post post)'));
       expect(made()['migration'], isFalse);
     });
 
@@ -312,7 +312,10 @@ void main() {
           'factory': true,
           'seeder': true,
         });
-        expect(read(controller), contains('Post().findOrFail(id)'));
+        expect(
+          read(controller),
+          contains('destroy(DoxRequest req, Post post)'),
+        );
       });
     }
 
@@ -421,21 +424,23 @@ void main() {
         );
         expect(c, contains('return BlogPost().all();'));
         expect(c, contains('return BlogPost().create(req.body);'));
-        expect(c, contains('return BlogPost().findOrFail(id);'));
         expect(
           c,
-          contains('BlogPost blogPost = await BlogPost().findOrFail(id);'),
+          contains(
+            'show(DoxRequest req, BlogPost blogPost) async {\n    return blogPost;',
+          ),
         );
+        expect(c, contains('edit(DoxRequest req, BlogPost blogPost)'));
+        expect(c, contains('update(DoxRequest req, BlogPost blogPost)'));
         expect(c, contains('await blogPost.update(req.body);'));
         expect(c, contains('await blogPost.delete();'));
-        expect(c, contains('edit(DoxRequest req, int id)'));
       });
     }
 
     test('--api --model: no create and edit, uses the model', () async {
       await run(<String>['Photo', '--api', '--model=Post']);
       String c = read(file);
-      expect(c, contains('Post().findOrFail(id)'));
+      expect(c, contains('show(DoxRequest req, Post post)'));
       expect(c, isNot(contains('edit(DoxRequest')));
     });
 

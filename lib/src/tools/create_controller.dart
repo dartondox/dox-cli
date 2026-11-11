@@ -18,67 +18,61 @@ class ${className}Controller {
 
 /// A resource controller. [api] leaves out the form pages `create` and
 /// `edit`. With [model] (the snake name, like `blog_post`) the actions use
-/// that model, imported from [package].
+/// that model, imported from [package]. Like Laravel, `show`, `edit`,
+/// `update` and `destroy` take the model: route model binding loads it
+/// by the `{id}` of the route.
 String _getResourceSample(
   String className, {
   bool api = false,
   String? model,
   String? package,
 }) {
-  String m = model == null ? '' : snakeToPascal(model);
-  String v = model == null ? '' : toPascalWithFirstLetterLowerCase(model);
+  bool withModel = model != null;
+  String m = withModel ? snakeToPascal(model) : '';
+  String v = withModel ? toPascalWithFirstLetterLowerCase(model) : '';
+  String id = withModel ? '$m $v' : 'int id';
   List<String> imports = <String>[
     "import 'package:dox_core/dox_core.dart';",
-    if (model != null)
+    if (withModel)
       "import 'package:$package/app/models/$model/$model.model.dart';",
   ]..sort();
   List<String> methods = <String>[
     _method('GET /resource', 'index(DoxRequest req)', <String>[
-      if (model != null) 'return $m().all();',
+      if (withModel) 'return $m().all();',
     ]),
     if (!api) _method('GET /resource/create', 'create(DoxRequest req)'),
     _method(
-      model == null
-          ? 'POST /resource'
-          : 'POST /resource\n  /// create() takes only the fillable columns of $m.',
+      withModel
+          ? 'POST /resource\n'
+                '  /// create() takes only the fillable columns of $m.'
+          : 'POST /resource',
       'store(DoxRequest req)',
-      <String>[if (model != null) 'return $m().create(req.body);'],
+      <String>[if (withModel) 'return $m().create(req.body);'],
     ),
     _method(
-      model == null ? 'GET /resource/{id}' : 'GET /resource/{id}\n  /// findOrFail() answers 404 when there is no row.',
-      'show(DoxRequest req, int id)',
-      <String>[if (model != null) 'return $m().findOrFail(id);'],
+      withModel
+          ? 'GET /resource/{id}\n'
+                '  /// Dox loads $v by the {id}. No row answers 404.'
+          : 'GET /resource/{id}',
+      'show(DoxRequest req, $id)',
+      <String>[if (withModel) 'return $v;'],
     ),
     if (!api)
-      _method(
-        'GET /resource/{id}/edit',
-        'edit(DoxRequest req, int id)',
-        <String>[if (model != null) 'return $m().findOrFail(id);'],
-      ),
+      _method('GET /resource/{id}/edit', 'edit(DoxRequest req, $id)', <String>[
+        if (withModel) 'return $v;',
+      ]),
+    _method('PUT|PATCH /resource/{id}', 'update(DoxRequest req, $id)', <String>[
+      if (withModel) ...<String>['await $v.update(req.body);', 'return $v;'],
+    ]),
     _method(
-      'PUT|PATCH /resource/{id}',
-      'update(DoxRequest req, int id)',
-      <String>[
-        if (model != null) ...<String>[
-          '$m $v = await $m().findOrFail(id);',
-          'await $v.update(req.body);',
-          'return $v;',
-        ],
-      ],
-    ),
-    _method(
-      model == null
-          ? 'DELETE /resource/{id}\n'
+      withModel
+          ? 'DELETE /resource/{id}'
+          : 'DELETE /resource/{id}\n'
                 '  /// delete() gives the number of rows it deleted, so 0 is a 404:\n'
-                "  /// `if (await Post().where('id', id).delete() == 0) throw NotFoundHttpException();`"
-          : 'DELETE /resource/{id}',
-      'destroy(DoxRequest req, int id)',
-      <String>[
-        if (model != null) ...<String>[
-          '$m $v = await $m().findOrFail(id);',
-          'await $v.delete();',
-        ],
-      ],
+                "  /// `if (await Post().where('id', id).delete() == 0) "
+                'throw NotFoundHttpException();`',
+      'destroy(DoxRequest req, $id)',
+      <String>[if (withModel) 'await $v.delete();'],
     ),
   ];
   return '''
