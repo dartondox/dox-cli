@@ -36,8 +36,8 @@ dox s                        # dev server, restarts when a file changes
 | `dox create <name>` | create a new project |
 | `dox serve` (or `dox s`) | start the dev server with `build_runner watch` |
 | `dox build` | build the native (AOT) bundle into `build/bundle` |
-| `dox make:controller <name> [-r]` | create a controller |
-| `dox make:model <name> [-m]` | create a model, and with `-m` its migration |
+| `dox make:controller <name> [-r] [--api] [--model=<model>]` | create a controller. `-r` makes a resource controller, `--api` one without `create` and `edit`, `--model` one that uses the model |
+| `dox make:model <name> [-m] [-c] [-r] [-f] [-s] [-a] [--api]` | create a model. `-m` migration, `-c` controller, `-r` resource controller, `--api` API resource controller, `-f` factory, `-s` seeder, `-a` all of them (`-m -f -s -r`). Join flags like `-mcr` |
 | `dox make:dto <name>` | create a DTO (typed, checked input) |
 | `dox make:job <name>` | create a queue job |
 | `dox queue:work` | run the queue worker (also `queue:failed`, `queue:retry`, `queue:forget`, `queue:flush`, `queue:clear`, `queue:restart`, `queue:prune-failed`) |

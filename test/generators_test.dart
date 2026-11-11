@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dox/src/command_registry.dart';
@@ -372,6 +373,20 @@ void main() {
 
     const String file = 'lib/app/http/controllers/photo.controller.dart';
 
+    /// the lines that `make:controller [args]` prints
+    Future<List<String>> runPrinted(List<String> args) async {
+      List<String> lines = <String>[];
+      await runZoned(
+        () => run(args),
+        zoneSpecification: ZoneSpecification(
+          print: (Zone self, ZoneDelegate parent, Zone zone, String line) {
+            lines.add(line);
+          },
+        ),
+      );
+      return lines;
+    }
+
     setUp(() {
       File('pubspec.yaml').writeAsStringSync('name: my_app\n');
     });
@@ -434,8 +449,71 @@ void main() {
         expect(c, contains('update(DoxRequest req, BlogPost blogPost)'));
         expect(c, contains('await blogPost.update(req.body);'));
         expect(c, contains('await blogPost.delete();'));
+        expect(
+          c,
+          contains(
+            '/// Set fillable in the BlogPost model first. '
+            'While it is empty, this throws.\n'
+            '  Future<dynamic> store(',
+          ),
+        );
+        expect(
+          c,
+          contains(
+            '/// Set fillable in the BlogPost model first. '
+            'While it is empty, this throws.\n'
+            '  Future<dynamic> update(',
+          ),
+        );
       });
     }
+
+    test('the name count error reads well', () async {
+      List<String> extra = await runPrinted(<String>['Photo', 'Pen']);
+      expect(
+        extra.single,
+        '\x1B[31mmake:controller takes 1 name, got 2: Photo Pen. '
+        'Run `dox help make:controller` to see the options.\x1B[0m',
+      );
+      List<String> none = await runPrinted(<String>['-r']);
+      expect(
+        none.single,
+        '\x1B[31mmake:controller takes 1 name, got 0. '
+        'Run `dox help make:controller` to see the options.\x1B[0m',
+      );
+    });
+
+    test('--model warns when the model file is missing', () async {
+      List<String> lines = await runPrinted(<String>['Photo', '--model=Post']);
+      expect(
+        lines.any(
+          (String l) =>
+              l.contains('The Post model does not exist yet.') &&
+              l.contains('Run `dox make:model Post`.') &&
+              l.startsWith('\x1B[33m'),
+        ),
+        isTrue,
+        reason: '$lines',
+      );
+    });
+
+    test('--model does not warn when the model file exists', () async {
+      Directory('lib/app/models/post').createSync(recursive: true);
+      File('lib/app/models/post/post.model.dart').writeAsStringSync('');
+      List<String> lines = await runPrinted(<String>['Photo', '--model=Post']);
+      expect(lines.any((String l) => l.contains('does not exist')), isFalse);
+    });
+
+    test(
+      'a plain resource controller names its own model in the hint',
+      () async {
+        await run(<String>['Blog', '-r']);
+        expect(
+          read('lib/app/http/controllers/blog.controller.dart'),
+          contains("`if (await Blog().where('id', id).delete() == 0) "),
+        );
+      },
+    );
 
     test('--api --model: no create and edit, uses the model', () async {
       await run(<String>['Photo', '--api', '--model=Post']);

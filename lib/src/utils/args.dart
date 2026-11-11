@@ -74,7 +74,7 @@ ParsedArgs? parseArgs(
   if (error == null && words.length != names) {
     error =
         '$command takes $names name${names == 1 ? '' : 's'}, '
-        'got ${words.length}: ${words.join(' ')}';
+        'got ${words.length}${words.isEmpty ? '' : ': ${words.join(' ')}'}.';
   }
   if (error != null) {
     print('\x1B[31m$error Run `dox help $command` to see the options.\x1B[0m');

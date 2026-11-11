@@ -78,7 +78,7 @@ String _getResourceSample(
           ? 'DELETE /resource/{id}'
           : 'DELETE /resource/{id}\n'
                 '  /// delete() gives the number of rows it deleted, so 0 is a 404:\n'
-                "  /// `if (await Post().where('id', id).delete() == 0) "
+                "  /// `if (await $className().where('id', id).delete() == 0) "
                 'throw NotFoundHttpException();`',
       'destroy(DoxRequest req, $id)',
       <String>[if (withModel) 'await $v.delete();'],
