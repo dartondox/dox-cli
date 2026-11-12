@@ -183,6 +183,7 @@ Map<String, Object?> _route(RouteData r, String method) {
     'handler': _text(last),
     'controller': last is ControllerAction ? '\${last.controller}' : null,
     'action': action,
+    'websocket': r.isWebSocket,
     'middleware': <String>[
       for (int i = 0; i < list.length - 1; i++) _text(list[i]),
     ],
@@ -223,7 +224,9 @@ class RouteRow {
       method: json['method'] as String,
       path: json['path'] as String,
       name: json['name'] as String?,
-      handler: handlerLabel(handler, action, controller),
+      handler: json['websocket'] == true
+          ? 'WebSocket'
+          : handlerLabel(handler, action, controller),
       middleware: <String>[
         for (Object? item in json['middleware'] as List<dynamic>)
           label(item as String),
@@ -248,8 +251,6 @@ class RouteRow {
     String? action,
     String? controller,
   ) {
-    // `Route.websocket`: its handler is `Future<WebSocket> call(DoxRequest)`
-    if (_webSocket.hasMatch(handler)) return 'WebSocket';
     // `Route.get<C>(path, (C c) => c.index)`
     if (controller != null) {
       return action == null ? controller : '$controller.${label(action)}';
@@ -269,10 +270,6 @@ class RouteRow {
     if (!text.startsWith('Closure:')) return text;
     return _functionName.firstMatch(text)?.group(1) ?? 'Closure';
   }
-
-  static final RegExp _webSocket = RegExp(
-    r"=> Future<WebSocket> from Function 'call'",
-  );
 
   static final RegExp _functionName = RegExp(r"from Function '([^']+)'");
 

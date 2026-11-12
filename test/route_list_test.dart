@@ -45,10 +45,32 @@ void main() {
       );
     });
 
+    Map<String, dynamic> wsJson(bool websocket) => <String, dynamic>{
+      'method': 'GET',
+      'path': '/ws',
+      'name': null,
+      'handler':
+          "Closure: (DoxRequest) => Future<WebSocket> from Function 'call':.",
+      'controller': null,
+      'action':
+          "Closure: (DoxRequest) => Future<WebSocket> from Function 'call':.",
+      'websocket': websocket,
+      'middleware': <dynamic>[],
+    };
+
     test('a websocket route shows WebSocket', () {
-      String fn =
-          "Closure: (DoxRequest) => Future<WebSocket> from Function 'call':.";
-      expect(RouteRow.handlerLabel(fn, fn, null), 'WebSocket');
+      expect(RouteRow.fromJson(wsJson(true)).handler, 'WebSocket');
+    });
+
+    test('a user callable that gives Future<WebSocket> is not WebSocket', () {
+      expect(RouteRow.fromJson(wsJson(false)).handler, 'call');
+    });
+
+    test('the script sends isWebSocket', () {
+      expect(
+        RouteList.scriptSource('blog'),
+        contains("'websocket': r.isWebSocket"),
+      );
     });
 
     test('a plain function handler', () {
