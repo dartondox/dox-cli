@@ -8,6 +8,7 @@ import 'package:dox/src/tools/create_project.dart';
 import 'package:dox/src/tools/app_scripts.dart';
 import 'package:dox/src/tools/create_dto.dart';
 import 'package:dox/src/tools/create_job.dart';
+import 'package:dox/src/tools/make_files.dart';
 import 'package:dox/src/tools/create_factory.dart';
 import 'package:dox/src/tools/create_seeder.dart';
 import 'package:dox/src/tools/create_serializer.dart';
@@ -253,6 +254,61 @@ class CommandRegistry {
       maxArgs: 1,
       function: (args) async {
         createMiddleware(args[0]);
+      },
+    ),
+
+    CommandDefinition(
+      command: 'make:provider',
+      helpInfo: 'make:provider <provider_name>',
+      description: 'Create a provider in lib/providers',
+      category: CommandCategory.development,
+      minArgs: 1,
+      function: (args) async {
+        createProvider(args);
+      },
+    ),
+
+    CommandDefinition(
+      command: 'make:command',
+      helpInfo: 'make:command <command_name>',
+      description: 'Create a dox command in lib/app/commands and add it to the commands list',
+      category: CommandCategory.development,
+      minArgs: 1,
+      function: (args) async {
+        createCommand(args);
+      },
+    ),
+
+    CommandDefinition(
+      command: 'make:mail',
+      helpInfo: 'make:mail <mail_name> [--no-view]',
+      description: 'Create a Mailable in lib/app/mail and its view. --no-view: a plain text body, no view',
+      category: CommandCategory.development,
+      minArgs: 1,
+      function: (args) async {
+        createMail(args);
+      },
+    ),
+
+    CommandDefinition(
+      command: 'make:view',
+      helpInfo: 'make:view <view_name>',
+      description: 'Create a .dox.html view in resources/views (emails/welcome makes a folder)',
+      category: CommandCategory.development,
+      minArgs: 1,
+      function: (args) async {
+        createView(args);
+      },
+    ),
+
+    CommandDefinition(
+      command: 'make:test',
+      helpInfo: 'make:test <test_name> [--unit]',
+      description: 'Create a test in test/ that uses DoxTestClient. --unit: a plain test',
+      category: CommandCategory.development,
+      minArgs: 1,
+      function: (args) async {
+        createTest(args);
       },
     ),
 
