@@ -550,6 +550,7 @@ void main() {
 
   group('cache:table', () {
     test('writes the migration and the registry, a second run fails', () async {
+      exitCode = 0;
       await CommandRegistry.findCommand('cache:table')!.function(<String>[]);
       List<File> files = Directory('db/migration')
           .listSync()
@@ -578,6 +579,33 @@ void main() {
             .where((FileSystemEntity f) => f.path.contains('cache_table')),
         hasLength(1),
       );
+      exitCode = 0;
+    });
+
+    test('a file with a longer name does not block it', () async {
+      exitCode = 0;
+      File('db/migration/2026_01_01_000000_add_x_create_cache_table.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('');
+      await CommandRegistry.findCommand('cache:table')!.function(<String>[]);
+      expect(exitCode, 0);
+      expect(
+        Directory('db/migration')
+            .listSync()
+            .map((FileSystemEntity f) => f.path),
+        anyElement(matches(RegExp(r'\d{6}_create_cache_table\.dart$'))),
+      );
+    });
+
+    test('a .sql migration with the same name blocks it', () async {
+      exitCode = 0;
+      File('db/migration/2026_01_01_000000_create_cache_table.sql')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('-- up\n\n-- down\n');
+      await CommandRegistry.findCommand('cache:table')!.function(<String>[]);
+      expect(exitCode, 1);
+      exitCode = 0;
+      expect(Directory('db/migration').listSync(), hasLength(1));
     });
   });
 

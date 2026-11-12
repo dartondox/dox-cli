@@ -10,7 +10,7 @@ void createCacheTableMigration() {
   bool exists =
       dir.existsSync() &&
       dir.listSync().whereType<File>().any(
-        (File f) => f.path.endsWith('_create_cache_table.dart'),
+        (File f) => _existing.hasMatch(f.uri.pathSegments.last),
       );
   if (exists) {
     print('A create_cache_table migration is already in db/migration.');
@@ -20,6 +20,11 @@ void createCacheTableMigration() {
   createMigration('create_cache_table', source: cacheTableMigrationSource);
   print('Run `dox migrate` to make the table.');
 }
+
+/// `2026_10_21_120000_create_cache_table.dart` (or `.sql`)
+final RegExp _existing = RegExp(
+  r'^\d{4}_\d{2}_\d{2}_\d+_create_cache_table\.(dart|sql)$',
+);
 
 /// the migration file
 const String cacheTableMigrationSource = '''
