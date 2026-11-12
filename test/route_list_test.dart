@@ -45,6 +45,12 @@ void main() {
       );
     });
 
+    test('a websocket route shows WebSocket', () {
+      String fn =
+          "Closure: (DoxRequest) => Future<WebSocket> from Function 'call':.";
+      expect(RouteRow.handlerLabel(fn, fn, null), 'WebSocket');
+    });
+
     test('a plain function handler', () {
       String fn = 'Closure: (DoxRequest) => String';
       expect(RouteRow.handlerLabel(fn, fn, null), 'Closure');
@@ -69,6 +75,18 @@ void main() {
     String out = 'some log line\n${RouteList.marker}[{"a":1}]\n';
     expect(RouteList.findData(out), '[{"a":1}]');
     expect(RouteList.findData('no marker'), isNull);
+  });
+
+  test('findData works when app output has no newline before the marker', () {
+    String out = 'log without newline${RouteList.marker}[1]\nlater line\n';
+    expect(RouteList.findData(out), '[1]');
+    expect(RouteList.findData('x${RouteList.marker}[2]'), '[2]');
+  });
+
+  test('the script lists global middleware for a middleware mount', () {
+    String source = RouteList.scriptSource('blog');
+    expect(source, contains('loaded.mountsWithMiddleware.contains(m.key)'));
+    expect(source, contains('Dox().config.globalMiddleware'));
   });
 
   test('table lines up the columns', () {
@@ -122,26 +140,47 @@ void main() {
       tempDir.deleteSync(recursive: true);
     });
 
-    Future<String> run(List<String> args) async {
+    test('route:list is registered', () {
+      expect(CommandRegistry.findCommand('route:list'), isNotNull);
+    });
+
+    /// run the command, give what went to stdout and to stderr
+    Future<(String, String)> run(List<String> args) async {
       StringBuffer out = StringBuffer();
+      StringBuffer err = StringBuffer();
       await runZoned(
-        () => CommandRegistry.findCommand('route:list')!.function(args),
+        () => RouteList(err: err).run(args),
         zoneSpecification: ZoneSpecification(
           print: (Zone self, ZoneDelegate parent, Zone zone, String line) {
             out.writeln(line);
           },
         ),
       );
-      return out.toString();
+      return (out.toString(), err.toString());
     }
 
-    test('no app: clear message and exit code 1', () async {
-      expect(await run(<String>[]), contains('No Dox app found here'));
+    test('no app: clear message on stderr and exit code 1', () async {
+      var (String out, String err) = await run(<String>['--json']);
+      expect(out, isEmpty);
+      expect(err, contains('No Dox app found here'));
+      expect(exitCode, 1);
+    });
+
+    test('a failing script: message on stderr, stdout stays empty', () async {
+      File('pubspec.yaml').writeAsStringSync('name: broken_app\n');
+      File('lib/config/app.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('this is not dart');
+      var (String out, String err) = await run(<String>['--json']);
+      expect(out, isEmpty);
+      expect(err, contains('Could not load the routes'));
       expect(exitCode, 1);
     });
 
     test('an unknown option: exit code 1', () async {
-      expect(await run(<String>['--yaml']), contains('Unknown option'));
+      var (String out, String err) = await run(<String>['--yaml']);
+      expect(out, isEmpty);
+      expect(err, contains('Unknown option'));
       expect(exitCode, 1);
     });
   });

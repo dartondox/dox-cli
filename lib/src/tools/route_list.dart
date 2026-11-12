@@ -13,6 +13,11 @@ import '../utils/utils.dart';
 /// It prints the routes as one JSON line after [RouteList.marker]. The
 /// CLI reads that line and prints the table.
 class RouteList {
+  RouteList({StringSink? err}) : _err = err ?? stderr;
+
+  /// error text goes here, not to stdout, so `--json` output stays clean
+  final StringSink _err;
+
   /// the script prints the JSON of the routes after this text
   static const String marker = '__DOX_ROUTES__';
 
@@ -25,7 +30,7 @@ class RouteList {
         if (arg != '--json') arg,
     ];
     if (unknown.isNotEmpty) {
-      print(
+      _err.writeln(
         'Unknown option: ${unknown.join(' ')}. Usage: dox route:list [--json]',
       );
       exitCode = 1;
@@ -34,7 +39,7 @@ class RouteList {
     String root = Directory.current.path;
     String? name = appPackageName();
     if (name == null || !File('$root/lib/config/app.dart').existsSync()) {
-      print(
+      _err.writeln(
         'No Dox app found here. Run `dox route:list` in the app folder '
         '(it needs pubspec.yaml and lib/config/app.dart).',
       );
@@ -52,11 +57,11 @@ class RouteList {
     String? data = findData(out);
     if (result.exitCode != 0 || data == null) {
       String err = result.stderr.toString();
-      print('Could not load the routes. The route script failed:');
-      stderr.write(out);
-      stderr.write(err);
+      _err.writeln('Could not load the routes. The route script failed:');
+      _err.write(out);
+      _err.write(err);
       if ('$out$err'.contains("'loadRoutes' isn't defined")) {
-        print(
+        _err.writeln(
           'Your dox_core is too old: it has no Dox().loadRoutes(). '
           'Run `dart pub upgrade dox_core`.',
         );
@@ -82,12 +87,14 @@ class RouteList {
     print(table(rows));
   }
 
-  /// the JSON after [marker] in the script output, or null
+  /// the JSON after the last [marker] in the script output, up to the
+  /// end of that line, or null. App output before it may have no newline.
   static String? findData(String out) {
-    for (String line in const LineSplitter().convert(out)) {
-      if (line.startsWith(marker)) return line.substring(marker.length);
-    }
-    return null;
+    int start = out.lastIndexOf(marker);
+    if (start < 0) return null;
+    start += marker.length;
+    int end = out.indexOf('\n', start);
+    return out.substring(start, end < 0 ? out.length : end).trim();
   }
 
   /// the routes as a text table, one route per line
@@ -137,15 +144,20 @@ import 'package:$package/config/app.dart';
 
 Future<void> main() async {
   Dox().initialize(appConfig);
+  AppRoutes loaded = Dox().loadRoutes();
   List<Map<String, Object?>> out = <Map<String, Object?>>[
-    for (RouteData r in Dox().loadRoutes()) _route(r, r.method),
-    for (RouteData r in Route().fallbacks) _route(r, 'FALLBACK'),
-    for (MapEntry<String, Function> m in Route().mounts.entries)
+    for (RouteData r in loaded.routes) _route(r, r.method),
+    for (RouteData r in loaded.fallbacks) _route(r, 'FALLBACK'),
+    for (MapEntry<String, Function> m in loaded.mounts.entries)
       <String, Object?>{
         'method': 'MOUNT',
         'path': m.key,
         'handler': m.value.toString(),
-        'middleware': <String>[],
+        // `Route.mount(..., middleware: true)` runs the global middleware
+        'middleware': <String>[
+          if (loaded.mountsWithMiddleware.contains(m.key))
+            for (Object? g in Dox().config.globalMiddleware) _text(g),
+        ],
       },
   ];
   stdout.writeln('$marker\${jsonEncode(out)}');
@@ -236,6 +248,8 @@ class RouteRow {
     String? action,
     String? controller,
   ) {
+    // `Route.websocket`: its handler is `Future<WebSocket> call(DoxRequest)`
+    if (_webSocket.hasMatch(handler)) return 'WebSocket';
     // `Route.get<C>(path, (C c) => c.index)`
     if (controller != null) {
       return action == null ? controller : '$controller.${label(action)}';
@@ -255,6 +269,10 @@ class RouteRow {
     if (!text.startsWith('Closure:')) return text;
     return _functionName.firstMatch(text)?.group(1) ?? 'Closure';
   }
+
+  static final RegExp _webSocket = RegExp(
+    r"=> Future<WebSocket> from Function 'call'",
+  );
 
   static final RegExp _functionName = RegExp(r"from Function '([^']+)'");
 
