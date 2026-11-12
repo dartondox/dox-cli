@@ -51,6 +51,7 @@ dox s                        # dev server, restarts when a file changes
 | `dox key:generate` | make a new `APP_KEY` (`--show` prints one and writes nothing; in production it asks first, `--force` skips the question) |
 | `dox env:generate` / `dox env:check` | make or check the typed env class |
 | `dox openapi:generate [dir]` | write `openapi.json` and `openapi.yaml` |
+| `dox route:list [--json]` | list every route of the app, without starting the server |
 
 Run `dox help` for all commands.
 

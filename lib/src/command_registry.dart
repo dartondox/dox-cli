@@ -15,6 +15,7 @@ import 'package:dox/src/tools/env_tools.dart';
 import 'package:dox/src/tools/generate_key.dart';
 import 'package:dox/src/tools/help.dart';
 import 'package:dox/src/tools/openapi_generate.dart';
+import 'package:dox/src/tools/route_list.dart';
 import 'package:dox/src/tools/server_serve.dart';
 import 'package:dox/src/tools/update_dox.dart';
 import 'package:dox/src/utils/args.dart';
@@ -327,6 +328,18 @@ class CommandRegistry {
       maxArgs: 1,
       function: (args) async {
         await openApiGenerate(args);
+      },
+    ),
+
+    // Route list
+    CommandDefinition(
+      command: 'route:list',
+      helpInfo: 'route:list [--json]',
+      description: 'List every route of the app (does not start the server)',
+      category: CommandCategory.development,
+      maxArgs: 1,
+      function: (args) async {
+        await RouteList().run(args);
       },
     ),
 
