@@ -293,7 +293,7 @@ class CommandRegistry {
     CommandDefinition(
       command: 'make:view',
       helpInfo: 'make:view <view_name>',
-      description: 'Create a .dox.html view in resources/views (emails/welcome makes a folder)',
+      description: 'Create a .dox.html view in resources/views (emails/welcome makes a folder). Names use letters, digits, _ and /; uppercase becomes snake_case',
       category: CommandCategory.development,
       minArgs: 1,
       function: (args) async {

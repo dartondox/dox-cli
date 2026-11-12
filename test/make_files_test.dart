@@ -105,6 +105,62 @@ void main() {
       expect(Directory('lib').existsSync(), isFalse);
     });
 
+    test('a `commands:` key of another block does not matter', () {
+      File('pubspec.yaml')
+          .writeAsStringSync('name: my_app\nscripts:\n  commands: x\n');
+      expect(createCommand(<String>['A']), isTrue);
+    });
+
+    test('a quoted value of the same library is accepted, no second key', () {
+      File('pubspec.yaml').writeAsStringSync(
+        'name: my_app\ndox:\n'
+        '  commands: "package:my_app/app/commands/commands.dart"\n',
+      );
+      expect(createCommand(<String>['A']), isTrue);
+      expect('commands:'.allMatches(read('pubspec.yaml')).length, 1);
+    });
+
+    test('`dox: # comment` gets the key under it, not a second dox:', () {
+      File('pubspec.yaml')
+          .writeAsStringSync('name: my_app\ndox: # mine\n  x: 1\n');
+      expect(createCommand(<String>['A']), isTrue);
+      expect('dox:'.allMatches(read('pubspec.yaml')).length, 1);
+      expect(read('pubspec.yaml'), contains('commands: package:my_app'));
+    });
+
+    test('a list that is not in the made shape: error, nothing changes', () {
+      File('lib/app/commands/commands.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          "import 'package:dox_core/command.dart';\n"
+          'final commands = <Command>[A()];\n',
+        );
+      printed(() => expect(createCommand(<String>['Foo']), isFalse));
+      expect(exitCode, 1);
+      expect(File('lib/app/commands/foo_command.dart').existsSync(), isFalse);
+      expect(read('pubspec.yaml'), 'name: my_app\n');
+    });
+
+    test('a multi line import stops it too', () {
+      File('lib/app/commands/commands.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          "import 'package:dox_core/command.dart'\n    show Command;\n"
+          'final List<Command> commands = <Command>[\n];\n',
+        );
+      printed(() => expect(createCommand(<String>['Foo']), isFalse));
+      expect(exitCode, 1);
+    });
+
+    test('a command that is in the list already is not added again', () {
+      createCommand(<String>['A']);
+      File('lib/app/commands/a_command.dart').deleteSync();
+      createCommand(<String>['A']);
+      String list = read('lib/app/commands/commands.dart');
+      expect('ACommand(),'.allMatches(list).length, 1);
+      expect("a_command.dart';".allMatches(list).length, 1);
+    });
+
     test('does not overwrite', () {
       createCommand(<String>['A']);
       printed(() => expect(createCommand(<String>['A']), isFalse));

@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:yaml/yaml.dart';
+
 import '../utils/args.dart';
 import '../utils/utils.dart';
 
@@ -70,29 +72,79 @@ bool createCommand(List<String> args) {
   }
   String className = '${snakeToPascal(name)}Command';
 
-  /// check the pubspec before we write anything
+  /// Check everything before we write anything. Fail with exit code 1
+  /// and an "add it by hand" message when a file is not what we expect.
+  String cmdName = name.replaceAll('_', '-');
+  String library = _commandsLibrary(package);
   File pubspec = File('${Directory.current.path}/pubspec.yaml');
   String pubspecText = pubspec.readAsStringSync();
-  RegExp keyPattern = RegExp(r'^dox:[ \t]*$', multiLine: true);
-  RegExp valuePattern = RegExp(r'^[ \t]+commands:[ \t]*(\S+)', multiLine: true);
-  RegExpMatch? existing = valuePattern.firstMatch(pubspecText);
-  if (existing != null && existing.group(1) != _commandsLibrary(package)) {
+  dynamic dox;
+  try {
+    dynamic doc = loadYaml(pubspecText);
+    dox = doc is Map ? doc['dox'] : null;
+  } catch (error) {
+    print('\x1B[31mpubspec.yaml is not valid YAML.\x1B[0m');
+    exitCode = 1;
+    return false;
+  }
+  dynamic existing = dox is Map ? dox['commands'] : null;
+  if (dox != null && dox is! Map) {
+    print('\x1B[31m`dox:` in pubspec.yaml must be a map.\x1B[0m');
+    exitCode = 1;
+    return false;
+  }
+  if (existing != null && existing != library) {
     print(
-      '\x1B[31mpubspec.yaml has `dox: commands: ${existing.group(1)}`. '
+      '\x1B[31mpubspec.yaml has `dox: commands: $existing`. '
       'Add the command to that list by hand, or point it to '
-      '${_commandsLibrary(package)}.\x1B[0m',
+      '$library.\x1B[0m',
+    );
+    exitCode = 1;
+    return false;
+  }
+  RegExpMatch? key = RegExp(
+    r'^dox:[ \t]*(#.*)?$',
+    multiLine: true,
+  ).firstMatch(pubspecText);
+  if (existing == null && dox != null && key == null) {
+    print(
+      '\x1B[31mCould not edit `dox:` in pubspec.yaml. Add '
+      '`commands: $library` under it by hand.\x1B[0m',
     );
     exitCode = 1;
     return false;
   }
 
+  /// the list file must have the shape this command writes
+  File list = File('${Directory.current.path}/lib/app/commands/commands.dart');
+  String? listText = list.existsSync() ? list.readAsStringSync() : null;
+  RegExpMatch? listMatch;
+  if (listText != null) {
+    listMatch = RegExp(
+      r'^final List<Command> commands = <Command>\[\n((?:  \w+\(\),\n)*)\];',
+      multiLine: true,
+    ).firstMatch(listText);
+    bool oneLineImports = RegExp(
+      r'^import .*[^;\n]$',
+      multiLine: true,
+    ).hasMatch(listText);
+    if (listMatch == null || oneLineImports) {
+      print(
+        '\x1B[31mlib/app/commands/commands.dart is not in the shape this '
+        'command edits. Add $className() and its import by hand.\x1B[0m',
+      );
+      exitCode = 1;
+      return false;
+    }
+  }
+
   bool done = _write('lib/app/commands/${name}_command.dart', '''
 import 'package:dox_core/command.dart';
 
-/// Run it with `dox app:${name.replaceAll('_', '-')}`.
+/// Run it with `dox app:$cmdName`.
 class $className extends Command {
   @override
-  String get name => 'app:${name.replaceAll('_', '-')}';
+  String get name => 'app:$cmdName';
 
   @override
   String get description => 'Describe what this command does';
@@ -107,8 +159,7 @@ class $className extends Command {
 
   String import =
       "import 'package:$package/app/commands/${name}_command.dart';";
-  File list = File('${Directory.current.path}/lib/app/commands/commands.dart');
-  if (!list.existsSync()) {
+  if (listText == null) {
     list.writeAsStringSync('''
 import 'package:dox_core/command.dart';
 $import
@@ -118,30 +169,20 @@ final List<Command> commands = <Command>[
   $className(),
 ];
 ''');
-  } else {
-    String text = list.readAsStringSync();
-    int close = text.lastIndexOf('];');
-    if (close == -1) {
-      print(
-        'Add $className() to the commands list of '
-        'lib/app/commands/commands.dart by hand.',
-      );
-    } else {
-      /// the entry goes before `];`, the import after the last import
-      text =
-          '${text.substring(0, close)}  $className(),\n${text.substring(close)}';
-      int lastImport = text.lastIndexOf(
-        RegExp(r'^import .*$', multiLine: true),
-      );
-      int end = lastImport == -1 ? 0 : text.indexOf('\n', lastImport) + 1;
-      text = '${text.substring(0, end)}$import\n${text.substring(end)}';
-      list.writeAsStringSync(text);
-    }
+  } else if (!listMatch!.group(1)!.contains('  $className(),\n')) {
+    /// the entry goes at the end of the list, the import after the last one
+    String text =
+        '${listText.substring(0, listMatch.end - 2)}  $className(),\n'
+        '${listText.substring(listMatch.end - 2)}';
+    int lastImport = text.lastIndexOf(RegExp(r'^import .*;$', multiLine: true));
+    int end = lastImport == -1 ? 0 : text.indexOf('\n', lastImport) + 1;
+    list.writeAsStringSync(
+      '${text.substring(0, end)}$import\n${text.substring(end)}',
+    );
   }
 
   if (existing == null) {
-    String line = '  commands: ${_commandsLibrary(package)}';
-    RegExpMatch? key = keyPattern.firstMatch(pubspecText);
+    String line = '  commands: $library';
     if (key != null) {
       pubspecText =
           '${pubspecText.substring(0, key.end)}\n$line${pubspecText.substring(key.end)}';
@@ -152,7 +193,7 @@ final List<Command> commands = <Command>[
     pubspec.writeAsStringSync(pubspecText);
     print('Added `dox: commands:` to pubspec.yaml.');
   }
-  print('Run `dart pub get`, then `dox app:${name.replaceAll('_', '-')}`.');
+  print('Run `dart pub get`, then `dox app:$cmdName`.');
   return true;
 }
 
@@ -250,6 +291,12 @@ $body}
       if (!RegExp('^\\s+$package:', multiLine: true).hasMatch(text)) {
         print('Add $package to pubspec.yaml: `dart pub add $package`');
       }
+    }
+    if (withView) {
+      print(
+        'The default view settings work (resources/views). Add a '
+        'ViewProvider with a ViewConfig only to change them.',
+      );
     }
   }
   return done;
