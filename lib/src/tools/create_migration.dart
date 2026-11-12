@@ -13,15 +13,18 @@ File migrateEntryFile() => File('${Directory.current.path}/bin/migrate.dart');
 /// make a migration file in `db/migration` and return its path.
 /// a Dart migration (default) also updates `db/migration/migrations.dart`
 /// and makes `bin/migrate.dart` when it is missing.
+/// [source] is the file text of a Dart migration, instead of the sample.
 /// [sql] makes the old `.sql` file with `-- up` and `-- down`.
-String createMigration(String name, {bool sql = false}) {
+String createMigration(String name, {bool sql = false, String? source}) {
   String snake = pascalToSnake(name.replaceAll(RegExp(r'[^\w]'), ''));
   Directory dir = migrationDirectory();
   String fileName =
       '${_timestamp(nextMigrationTime(dir, DateTime.now()))}_$snake';
   File file = File('${dir.path}/$fileName.${sql ? 'sql' : 'dart'}');
   file.createSync(recursive: true);
-  file.writeAsStringSync(sql ? _sampleSql : dartMigrationSource(snake));
+  file.writeAsStringSync(
+    sql ? _sampleSql : (source ?? dartMigrationSource(snake)),
+  );
   if (!sql) {
     writeMigrationRegistry();
     writeMigrateEntry();

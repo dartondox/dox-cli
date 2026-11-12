@@ -43,6 +43,7 @@ dox s                        # dev server, restarts when a file changes
 | `dox queue:work` | run the queue worker (also `queue:failed`, `queue:retry`, `queue:forget`, `queue:flush`, `queue:clear`, `queue:restart`, `queue:prune-failed`) |
 | `dox schedule:work` | run the scheduler (also `schedule:run`, `schedule:list`, `schedule:test`, `schedule:clear-cache`) |
 | `dox make:migration <name> [--sql]` | create a Dart or SQL migration |
+| `dox cache:table` | create the migration of the database cache table |
 | `dox migration:run` (or `dox migrate`) | run new migrations |
 | `dox migration:rollback [--step=N] [--batch=N]` | undo the last batch, the last N migrations, or batch N only |
 | `dox migration:fresh [--seed]` | drop all tables, then run all migrations |

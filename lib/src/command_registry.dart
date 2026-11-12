@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dox/src/tools/create_controller.dart';
 import 'package:dox/src/tools/create_middleware.dart';
+import 'package:dox/src/tools/create_cache_table.dart';
 import 'package:dox/src/tools/create_migration.dart';
 import 'package:dox/src/tools/create_model.dart';
 import 'package:dox/src/tools/create_project.dart';
@@ -566,6 +567,18 @@ class CommandRegistry {
       maxArgs: 2,
       function: (args) async {
         createMigration(args[0], sql: args.length >= 2 && args[1] == '--sql');
+      },
+    ),
+
+    CommandDefinition(
+      command: 'cache:table',
+      helpInfo: 'cache:table',
+      description: 'Create a migration for the database cache table',
+      category: CommandCategory.database,
+      minArgs: 0,
+      maxArgs: 0,
+      function: (args) async {
+        createCacheTableMigration();
       },
     ),
 

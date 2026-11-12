@@ -548,6 +548,39 @@ void main() {
     }
   });
 
+  group('cache:table', () {
+    test('writes the migration and the registry, a second run fails', () async {
+      await CommandRegistry.findCommand('cache:table')!.function(<String>[]);
+      List<File> files = Directory('db/migration')
+          .listSync()
+          .whereType<File>()
+          .where((File f) => f.path.endsWith('_create_cache_table.dart'))
+          .toList();
+      expect(files, hasLength(1));
+      String c = files.single.readAsStringSync();
+      expect(c, contains('class CreateCacheTable extends Migration {'));
+      expect(c, contains("await schema.create('cache', (Table table) {"));
+      expect(c, contains("table.string('key', 255).primary();"));
+      expect(c, contains("table.longText('value');"));
+      expect(c, contains("table.bigInteger('expires_at').nullable();"));
+      expect(c, contains("await schema.dropIfExists('cache');"));
+      expect(
+        File('db/migration/migrations.dart').readAsStringSync(),
+        contains('CreateCacheTable()'),
+      );
+      expect(exitCode, 0);
+
+      await CommandRegistry.findCommand('cache:table')!.function(<String>[]);
+      expect(exitCode, 1);
+      expect(
+        Directory('db/migration')
+            .listSync()
+            .where((FileSystemEntity f) => f.path.contains('cache_table')),
+        hasLength(1),
+      );
+    });
+  });
+
   group('make:migration', () {
     Future<List<File>> run(List<String> args) async {
       await CommandRegistry.findCommand('make:migration')!.function(args);
