@@ -124,7 +124,7 @@ class CommandRegistry {
           pascalToSnake(name),
         );
 
-        /// like Laravel: when the model exists, nothing else is made
+        /// when the model exists, nothing else is made
         if (!createModel(name, table: table)) return;
 
         /// the same files as the single commands make for this model:
@@ -235,7 +235,7 @@ class CommandRegistry {
         if (parsed == null) return;
         String? model = parsed.options['model'];
 
-        /// like Laravel: --api and --model make a resource controller
+        /// --api and --model make a resource controller
         bool api = parsed.flags.contains('api');
         bool resource =
             api || model != null || parsed.flags.contains('resource');
