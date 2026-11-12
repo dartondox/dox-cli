@@ -5,19 +5,68 @@ import 'package:yaml/yaml.dart';
 import '../utils/args.dart';
 import '../utils/utils.dart';
 
-/// Write [content] to [path] (from the app folder). It never overwrites:
-/// when the file is there, it prints a message and sets exit code 1.
-bool _write(String path, String content) {
-  File file = File('${Directory.current.path}/$path');
-  if (file.existsSync()) {
-    print('\x1B[31m$path already exists\x1B[0m');
+/// Write the new files [created] (path => text) and change the files
+/// [changed] (path => new text). Paths are from the app folder.
+///
+/// It is all or nothing. When a new file is there already, it prints a
+/// message, sets exit code 1 and writes nothing. When a write fails, it
+/// deletes the files it made, puts back the files it changed, prints one
+/// message (no stack trace) and sets exit code 1.
+bool _writeAll(Map<String, String> created, [Map<String, String>? changed]) {
+  String root = Directory.current.path;
+  for (String path in created.keys) {
+    if (File('$root/$path').existsSync()) {
+      print('\x1B[31m$path already exists\x1B[0m');
+      exitCode = 1;
+      return false;
+    }
+  }
+  List<File> made = <File>[];
+  Map<File, String> old = <File, String>{};
+  try {
+    for (MapEntry<String, String> e in created.entries) {
+      File file = File('$root/${e.key}');
+      file.createSync(recursive: true);
+      made.add(file);
+      file.writeAsStringSync(e.value);
+    }
+    for (MapEntry<String, String> e
+        in (changed ?? <String, String>{}).entries) {
+      File file = File('$root/${e.key}');
+      old[file] = file.readAsStringSync();
+      file.writeAsStringSync(e.value);
+    }
+  } on FileSystemException catch (error) {
+    for (File file in made) {
+      try {
+        file.deleteSync();
+      } on FileSystemException {
+        /// nothing more to do
+      }
+    }
+    old.forEach((File file, String text) {
+      try {
+        file.writeAsStringSync(text);
+      } on FileSystemException {
+        /// nothing more to do
+      }
+    });
+    print(
+      '\x1B[31mCould not write ${error.path ?? 'a file'}: '
+      '${error.osError?.message ?? error.message}. '
+      'Nothing was made.\x1B[0m',
+    );
     exitCode = 1;
     return false;
   }
-  file.createSync(recursive: true);
-  file.writeAsStringSync(content);
-  print('\x1B[32m$path created successfully.\x1B[0m');
+  for (String path in created.keys) {
+    print('\x1B[32m$path created successfully.\x1B[0m');
+  }
   return true;
+}
+
+bool _write(String path, String content) {
+  return _writeAll(<String, String>{path: content});
 }
 
 /// `dox make:provider Cache` makes `lib/providers/cache_provider.dart`.
@@ -106,7 +155,11 @@ bool createCommand(List<String> args) {
     r'^dox:[ \t]*(#.*)?$',
     multiLine: true,
   ).firstMatch(pubspecText);
-  if (existing == null && dox != null && key == null) {
+  bool hasDoxLine = RegExp(
+    r'^\S*dox\S*:',
+    multiLine: true,
+  ).hasMatch(pubspecText);
+  if (existing == null && hasDoxLine && key == null) {
     print(
       '\x1B[31mCould not edit `dox:` in pubspec.yaml. Add '
       '`commands: $library` under it by hand.\x1B[0m',
@@ -138,7 +191,72 @@ bool createCommand(List<String> args) {
     }
   }
 
-  bool done = _write('lib/app/commands/${name}_command.dart', '''
+  String import =
+      "import 'package:$package/app/commands/${name}_command.dart';";
+  String? newList;
+  if (listText == null) {
+    newList =
+        '''
+import 'package:dox_core/command.dart';
+$import
+
+/// The `dox: commands:` key in pubspec.yaml points to this list.
+final List<Command> commands = <Command>[
+  $className(),
+];
+''';
+  } else if (!listMatch!.group(1)!.contains('  $className(),\n')) {
+    /// the entry goes at the end of the list, the import after the last one
+    String text =
+        '${listText.substring(0, listMatch.end - 2)}  $className(),\n'
+        '${listText.substring(listMatch.end - 2)}';
+    int lastImport = text.lastIndexOf(RegExp(r'^import .*;$', multiLine: true));
+    int end = lastImport == -1 ? 0 : text.indexOf('\n', lastImport) + 1;
+    newList = '${text.substring(0, end)}$import\n${text.substring(end)}';
+  }
+
+  String? newPubspec;
+  if (existing == null) {
+    String line = 'commands: $library';
+    if (key != null) {
+      /// use the indent of the first line under `dox:`, else 2 spaces
+      String indent = '  ';
+      RegExpMatch? child = RegExp(r'\n([ \t]*)(?!#)\S')
+          .firstMatch(pubspecText.substring(key.end));
+      if (child != null && child.group(1)!.isNotEmpty) {
+        indent = child.group(1)!;
+      }
+      newPubspec =
+          '${pubspecText.substring(0, key.end)}\n$indent$line${pubspecText.substring(key.end)}';
+    } else {
+      newPubspec =
+          '$pubspecText${pubspecText.endsWith('\n') ? '' : '\n'}\ndox:\n  $line\n';
+    }
+
+    /// the result must be valid YAML with the right value
+    bool ok = false;
+    try {
+      dynamic doc = loadYaml(newPubspec);
+      ok = doc is Map && doc['dox'] is Map && doc['dox']['commands'] == library;
+    } catch (error) {
+      ok = false;
+    }
+    if (!ok) {
+      print(
+        '\x1B[31mCould not edit `dox:` in pubspec.yaml. Add '
+        '`commands: $library` under it by hand.\x1B[0m',
+      );
+      exitCode = 1;
+      return false;
+    }
+  }
+
+  String commandPath = 'lib/app/commands/${name}_command.dart';
+  String listPath = 'lib/app/commands/commands.dart';
+  bool done = _writeAll(
+    <String, String>{
+      commandPath:
+          '''
 import 'package:dox_core/command.dart';
 
 /// Run it with `dox app:$cmdName`.
@@ -154,45 +272,16 @@ class $className extends Command {
     /// write your logic here
   }
 }
-''');
+''',
+      if (listText == null) listPath: newList!,
+    },
+    <String, String>{
+      if (listText != null && newList != null) listPath: newList,
+      'pubspec.yaml': ?newPubspec,
+    },
+  );
   if (!done) return false;
-
-  String import =
-      "import 'package:$package/app/commands/${name}_command.dart';";
-  if (listText == null) {
-    list.writeAsStringSync('''
-import 'package:dox_core/command.dart';
-$import
-
-/// The `dox: commands:` key in pubspec.yaml points to this list.
-final List<Command> commands = <Command>[
-  $className(),
-];
-''');
-  } else if (!listMatch!.group(1)!.contains('  $className(),\n')) {
-    /// the entry goes at the end of the list, the import after the last one
-    String text =
-        '${listText.substring(0, listMatch.end - 2)}  $className(),\n'
-        '${listText.substring(listMatch.end - 2)}';
-    int lastImport = text.lastIndexOf(RegExp(r'^import .*;$', multiLine: true));
-    int end = lastImport == -1 ? 0 : text.indexOf('\n', lastImport) + 1;
-    list.writeAsStringSync(
-      '${text.substring(0, end)}$import\n${text.substring(end)}',
-    );
-  }
-
-  if (existing == null) {
-    String line = '  commands: $library';
-    if (key != null) {
-      pubspecText =
-          '${pubspecText.substring(0, key.end)}\n$line${pubspecText.substring(key.end)}';
-    } else {
-      if (!pubspecText.endsWith('\n')) pubspecText += '\n';
-      pubspecText += '\ndox:\n$line\n';
-    }
-    pubspec.writeAsStringSync(pubspecText);
-    print('Added `dox: commands:` to pubspec.yaml.');
-  }
+  if (newPubspec != null) print('Added `dox: commands:` to pubspec.yaml.');
   print('Run `dart pub get`, then `dox app:$cmdName`.');
   return true;
 }
@@ -265,7 +354,9 @@ bool createMail(List<String> args) {
   @override
   String? get text => 'Write your message here.';
 ''';
-  bool done = _write(mailPath, '''
+  bool done = _writeAll(<String, String>{
+    mailPath:
+        '''
 import 'package:dox_mailer/dox_mailer.dart';
 
 /// Send: await $className(Address('ann@example.com')).send();
@@ -282,8 +373,9 @@ class $className extends Mailable {
   String get subject => '${snakeToPascal(name)}';
 
 $body}
-''');
-  if (done && withView) _write(viewPath, _viewSample);
+''',
+    if (withView) viewPath: _viewSample,
+  });
   if (done) {
     File pubspec = File('${Directory.current.path}/pubspec.yaml');
     String text = pubspec.existsSync() ? pubspec.readAsStringSync() : '';

@@ -161,6 +161,48 @@ void main() {
       expect("a_command.dart';".allMatches(list).length, 1);
     });
 
+    test('uses the indent of the children of `dox:`', () {
+      File('pubspec.yaml').writeAsStringSync('name: my_app\ndox:\n    x: 1\n');
+      expect(createCommand(<String>['A']), isTrue);
+      expect(
+        read('pubspec.yaml'),
+        'name: my_app\ndox:\n'
+        '    commands: package:my_app/app/commands/commands.dart\n    x: 1\n',
+      );
+    });
+
+    test('`dox: ~` and `dox: null`: error, nothing written', () {
+      for (String value in <String>['~', 'null']) {
+        File('pubspec.yaml').writeAsStringSync('name: my_app\ndox: $value\n');
+        printed(() => expect(createCommand(<String>['A']), isFalse));
+        expect(exitCode, 1);
+        exitCode = 0;
+        expect(read('pubspec.yaml'), 'name: my_app\ndox: $value\n');
+        expect(Directory('lib').existsSync(), isFalse);
+      }
+    });
+
+    test('a write that fails removes the files this run made', () {
+      Directory('lib/app/commands').createSync(recursive: true);
+      File('lib/app/commands/commands.dart').writeAsStringSync(
+        "import 'package:dox_core/command.dart';\n"
+        'final List<Command> commands = <Command>[\n];\n',
+      );
+      Process.runSync('chmod', <String>[
+        '444',
+        'lib/app/commands/commands.dart',
+      ]);
+      String out = printed(() => expect(createCommand(<String>['A']), isFalse));
+      Process.runSync('chmod', <String>[
+        '644',
+        'lib/app/commands/commands.dart',
+      ]);
+      expect(exitCode, 1);
+      expect(out, contains('Nothing was made'));
+      expect(File('lib/app/commands/a_command.dart').existsSync(), isFalse);
+      expect(read('pubspec.yaml'), 'name: my_app\n');
+    });
+
     test('does not overwrite', () {
       createCommand(<String>['A']);
       printed(() => expect(createCommand(<String>['A']), isFalse));
@@ -207,6 +249,17 @@ void main() {
       expect(Directory('resources').existsSync(), isFalse);
     });
 
+    test('a write that fails removes the mail file too', () {
+      Directory('resources/views').createSync(recursive: true);
+      File('resources/views/emails').writeAsStringSync('a file');
+      String out = printed(
+        () => expect(createMail(<String>['Welcome']), isFalse),
+      );
+      expect(exitCode, 1);
+      expect(out, contains('Nothing was made'));
+      expect(File('lib/app/mail/welcome_mail.dart').existsSync(), isFalse);
+    });
+
     test('an existing view stops it before any file is made', () {
       createView(<String>['emails/welcome']);
       printed(() => expect(createMail(<String>['Welcome']), isFalse));
@@ -236,6 +289,15 @@ void main() {
       printed(() => expect(createTest(<String>['Ping']), isFalse));
       expect(exitCode, 1);
     });
+  });
+
+  test('a quoted package name is read without quotes', () {
+    File('pubspec.yaml').writeAsStringSync('name: "my_app"\n');
+    createTest(<String>['Ping']);
+    expect(
+      read('test/ping_test.dart'),
+      contains("package:my_app/config/app.dart"),
+    );
   });
 
   group('bad input', () {
