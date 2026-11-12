@@ -18,7 +18,7 @@ class ${className}Controller {
 
 /// A resource controller. [api] leaves out the form pages `create` and
 /// `edit`. With [model] (the snake name, like `blog_post`) the actions use
-/// that model, imported from [package]. Like Laravel, `show`, `edit`,
+/// that model, imported from [package]. The actions `show`, `edit`,
 /// `update` and `destroy` take the model: route model binding loads it
 /// by the `{id}` of the route.
 String _getResourceSample(

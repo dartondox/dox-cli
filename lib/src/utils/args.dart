@@ -14,7 +14,7 @@ class ParsedArgs {
   ParsedArgs(this.names, this.flags, this.options);
 }
 
-/// Read the [args] of [command], Laravel style.
+/// Read the [args] of [command].
 ///
 /// - [short] maps one letter to a long name, like `m` to `migration`.
 ///   Letters can be joined: `-mcr` is the same as `-m -c -r`.
