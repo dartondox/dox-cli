@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:yaml/yaml.dart';
+
 String pascalToSnake(String input) {
   final result = StringBuffer();
   for (final letter in input.codeUnits) {
@@ -92,8 +94,11 @@ Future<String?> httpGet(String url) async {
 String? appPackageName() {
   File pubspec = File('${Directory.current.path}/pubspec.yaml');
   if (!pubspec.existsSync()) return null;
-  return RegExp(
-    r'^name:\s*(\S+)',
-    multiLine: true,
-  ).firstMatch(pubspec.readAsStringSync())?.group(1);
+  try {
+    dynamic doc = loadYaml(pubspec.readAsStringSync());
+    dynamic name = doc is Map ? doc['name'] : null;
+    return name is String && name.isNotEmpty ? name : null;
+  } catch (error) {
+    return null;
+  }
 }
