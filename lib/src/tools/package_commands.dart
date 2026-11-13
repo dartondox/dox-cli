@@ -400,7 +400,10 @@ Future<void> main(List<String> args) async {
         : null;
     if (commands is! List) {
       commands = await _loadList();
-      if (commands == null) return <PackageCommandInfo>[];
+      if (commands == null) {
+        loadFailed = true;
+        return <PackageCommandInfo>[];
+      }
       if (_cacheKey != null && cache['key'] == _cacheKey) {
         cache['listKey'] = listKey;
         cache['commands'] = commands;
@@ -509,6 +512,13 @@ Future<void> main(List<String> args) async {
   /// the warnings of the last [discover]. A discovery with warnings is
   /// not cached, so they show on each run until the package is fixed.
   final List<String> _warnings = <String>[];
+
+  /// the warnings of the last [discover], read only
+  List<String> get warnings => List<String>.unmodifiable(_warnings);
+
+  /// true when the last [list] could not load the commands (the runner
+  /// did not compile, or a commands library is broken)
+  bool loadFailed = false;
 
   void _warn(String message) {
     _warnings.add(message);
