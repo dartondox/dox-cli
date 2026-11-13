@@ -73,6 +73,10 @@ bool createJob(String name) {
     multiLine: true,
   ).hasMatch(pubspec.readAsStringSync())) {
     print('Add dox_queue to pubspec.yaml: `dart pub add dox_queue`');
+    print(
+      'For the database driver or batches, also add dox_queue_database '
+      'and call QueueDatabase.register() in your queue provider.',
+    );
   }
   print('Run `dox build_runner:build` to make lib/generated/jobs.g.dart.');
   return true;
