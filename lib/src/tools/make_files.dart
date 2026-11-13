@@ -197,7 +197,7 @@ bool createCommand(List<String> args) {
   if (listText == null) {
     newList =
         '''
-import 'package:dox_core/command.dart';
+import 'package:dox_annotation/command.dart';
 $import
 
 /// The `dox: commands:` key in pubspec.yaml points to this list.
@@ -257,7 +257,7 @@ final List<Command> commands = <Command>[
     <String, String>{
       commandPath:
           '''
-import 'package:dox_core/command.dart';
+import 'package:dox_annotation/command.dart';
 
 /// Run it with `dox app:$cmdName`.
 class $className extends Command {

@@ -63,7 +63,7 @@ void main() {
     test('writes the command, the list and the pubspec key', () {
       expect(createCommand(<String>['SendReport']), isTrue);
       String file = read('lib/app/commands/send_report_command.dart');
-      expect(file, contains("import 'package:dox_core/command.dart';"));
+      expect(file, contains("import 'package:dox_annotation/command.dart';"));
       expect(file, contains('class SendReportCommand extends Command {'));
       expect(file, contains("'app:send-report'"));
       String list = read('lib/app/commands/commands.dart');
@@ -132,7 +132,7 @@ void main() {
       File('lib/app/commands/commands.dart')
         ..createSync(recursive: true)
         ..writeAsStringSync(
-          "import 'package:dox_core/command.dart';\n"
+          "import 'package:dox_annotation/command.dart';\n"
           'final commands = <Command>[A()];\n',
         );
       printed(() => expect(createCommand(<String>['Foo']), isFalse));
@@ -145,7 +145,7 @@ void main() {
       File('lib/app/commands/commands.dart')
         ..createSync(recursive: true)
         ..writeAsStringSync(
-          "import 'package:dox_core/command.dart'\n    show Command;\n"
+          "import 'package:dox_annotation/command.dart'\n    show Command;\n"
           'final List<Command> commands = <Command>[\n];\n',
         );
       printed(() => expect(createCommand(<String>['Foo']), isFalse));
@@ -185,7 +185,7 @@ void main() {
     test('a write that fails removes the files this run made', () {
       Directory('lib/app/commands').createSync(recursive: true);
       File('lib/app/commands/commands.dart').writeAsStringSync(
-        "import 'package:dox_core/command.dart';\n"
+        "import 'package:dox_annotation/command.dart';\n"
         'final List<Command> commands = <Command>[\n];\n',
       );
       Process.runSync('chmod', <String>[

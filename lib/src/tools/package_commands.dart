@@ -33,7 +33,7 @@ class PackageCommandInfo {
 /// ```
 /// That library has a top-level `commands` list. Each command has `name`,
 /// `description`, `usage` and `Future<void> run(List<String> args)`
-/// (the `Command` class of `package:dox_core/command.dart`).
+/// (the `Command` class of `package:dox_annotation/command.dart`).
 ///
 /// This class reads `.dart_tool/package_config.json` and the pubspec.yaml
 /// of each package, then writes `.dart_tool/dox/commands.dart`. That file
