@@ -1,4 +1,4 @@
-## Unreleased
+## 3.2.0
 
 - New: `dox add <package>` adds a Dox package and sets it up. `orm` is short for `dox_orm`. It runs `dart pub add` (with `--dev` when given), `dart pub get`, then the `<package>:install` command of the package. The other words go to that command, like `dox add orm --driver=postgres`. A package with no install command is only added, and `dox add` says so. When the package commands can not be loaded (a broken commands library), it prints an error and exits with code 1. The name is the first word that is not a flag, so `dox add --dev orm` works. The CLI has no code of any package.
 - The hints of `dox queue:*` (when `bin/queue.dart` is missing) and `dox make:job` (when dox_queue is not in pubspec.yaml) now say: for the database driver or batches, add `dox_queue_database` and make the queue provider extend `DatabaseQueueProvider`.
