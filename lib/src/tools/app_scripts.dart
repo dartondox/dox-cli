@@ -7,7 +7,10 @@ const String queueMissingMessage =
     'bin/queue.dart is missing.\n'
     '1. Add dox_queue to pubspec.yaml: `dart pub add dox_queue`\n'
     '2. Run `dox make:job <name>` once. It makes the job and bin/queue.dart.\n'
-    '3. Run `dox build_runner:build`.';
+    '3. Run `dox build_runner:build`.\n'
+    'For the database driver or batches, also add dox_queue_database\n'
+    '(`dart pub add dox_queue_database`), call QueueDatabase.register()\n'
+    'in your queue provider before super.setup(), and run `dox queue:table`.';
 
 /// message for `dox schedule:*` when `bin/schedule.dart` is missing
 const String scheduleMissingMessage =
