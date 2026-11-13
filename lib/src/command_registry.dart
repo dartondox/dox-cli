@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dox/src/tools/add_package.dart';
 import 'package:dox/src/tools/create_controller.dart';
 import 'package:dox/src/tools/create_middleware.dart';
 import 'package:dox/src/tools/create_migration.dart';
@@ -144,6 +145,21 @@ class CommandRegistry {
             model: resource ? name : null,
           );
         }
+      },
+    ),
+
+    // Add a package
+    CommandDefinition(
+      command: 'add',
+      helpInfo: 'add <package> [--dev] [options]',
+      description:
+          'Add a Dox package and set it up with its <package>:install '
+          'command. `orm` is dox_orm. Options go to the install command, '
+          'like --driver=postgres',
+      category: CommandCategory.project,
+      minArgs: 1,
+      function: (args) async {
+        await AddPackage().run(args);
       },
     ),
 
