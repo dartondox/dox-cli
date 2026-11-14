@@ -46,6 +46,14 @@ void main() {
     expect(canHotReload('bin/server.dart'), isFalse);
   });
 
+  test('dox serve knows the files build_runner writes', () {
+    expect(isGeneratedFile('lib/app/models/user/user.model.g.dart'), isTrue);
+    expect(isGeneratedFile('lib/generated/container.dart'), isTrue);
+    expect(isGeneratedFile('lib/app/models/user/user.model.dart'), isFalse);
+    expect(isGeneratedFile('lib/routes/api.dart'), isFalse);
+    expect(isGeneratedFile('bin/server.dart'), isFalse);
+  });
+
   test('dox serve reads the VM service address', () {
     expect(
       vmServiceUri(
@@ -135,7 +143,8 @@ void main() {
   test('stopProcess kills a process that ignores SIGTERM', () async {
     Process p = await Process.start('sh', <String>[
       '-c',
-      'trap "" TERM; sleep 30',
+      // short sleeps, so no long `sleep` stays behind after SIGKILL
+      'trap "" TERM; while true; do sleep 0.1; done',
     ]);
     addTearDown(() => p.kill(ProcessSignal.sigkill));
     // let sh set the trap first
@@ -209,7 +218,18 @@ void main() {
       // kill -0 only checks if the process still runs
       ProcessResult alive = Process.runSync('kill', <String>['-0', '$server']);
       expect(alive.exitCode, isNot(0), reason: 'the server still runs');
-      // dox stopped its resident compiler and removed its info file
+      // dox stopped its resident compiler (no process names this app folder)
+      ProcessResult compiler = Process.runSync('pgrep', <String>[
+        '-f',
+        // the temp folder name is unique to this test
+        app.uri.pathSegments.lastWhere((String p) => p.isNotEmpty),
+      ]);
+      expect(
+        (compiler.stdout as String).trim(),
+        isEmpty,
+        reason: 'the resident compiler still runs',
+      );
+      // and removed its info file
       Directory infoDir = Directory('${app.path}/.dart_tool/dox');
       List<String> left = infoDir.existsSync()
           ? infoDir
@@ -218,7 +238,7 @@ void main() {
                 .where((String f) => f.contains('resident_compiler_info'))
                 .toList()
           : <String>[];
-      expect(left, isEmpty, reason: 'the resident compiler still runs');
+      expect(left, isEmpty, reason: 'the info file is still there');
     },
     testOn: '!windows',
     timeout: const Timeout(Duration(minutes: 1)),

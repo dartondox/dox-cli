@@ -14,6 +14,11 @@ final Set<Process> _children = <Process>{};
 bool _watchingSignals = false;
 
 void _track(Process process) {
+  // dox is stopping: a server or build_runner that starts now must not stay
+  if (_stopping) {
+    process.kill();
+    return;
+  }
   _children.add(process);
   process.exitCode.then((_) => _children.remove(process));
   if (_watchingSignals) return;
@@ -46,33 +51,54 @@ bool _stopping = false;
 /// It also stops the resident compiler of `dox serve`, so it does not stay
 /// alive in the background.
 Future<void> stopChildren() async {
-  // eg. Ctrl+C twice: the first call already stops everything
-  if (_stopping) return;
+  // a second Ctrl+C while dox is stopping: exit now, do not wait
+  if (_stopping) exit(1);
   _stopping = true;
-  List<Process> children = _children.toList();
-  for (Process child in children) {
-    child.kill();
-  }
-  await Future.wait(children.map((Process c) => c.exitCode))
-      .timeout(const Duration(seconds: 5), onTimeout: () => <int>[]);
-  if (_usesResidentCompiler && File(_compilerInfoFile).existsSync()) {
-    try {
-      await Process.run('dart', <String>[
-        'compilation-server',
-        'shutdown',
-        '--resident-compiler-info-file',
-        _compilerInfoFile,
-      ]).timeout(const Duration(seconds: 5));
-    } catch (_) {
-      // dox exits anyway
-    }
-    try {
-      File(_compilerInfoFile).deleteSync();
-    } catch (_) {
-      // already gone
-    }
-  }
+  // a child that ignores SIGTERM gets SIGKILL after 5 seconds
+  await Future.wait(_children.toList().map(stopProcess));
+  if (_usesResidentCompiler) await _stopCompiler(_compilerInfoFile);
   exit(0);
+}
+
+/// Stops the resident compiler of [infoFile] and deletes the file.
+Future<void> _stopCompiler(String infoFile) async {
+  if (!File(infoFile).existsSync()) return;
+  try {
+    await Process.run('dart', <String>[
+      'compilation-server',
+      'shutdown',
+      '--resident-compiler-info-file',
+      infoFile,
+    ]).timeout(const Duration(seconds: 5));
+  } catch (_) {
+    // dox goes on anyway
+  }
+  try {
+    File(infoFile).deleteSync();
+  } catch (_) {
+    // already gone
+  }
+}
+
+/// Stops the resident compilers of `dox serve` runs that died without
+/// cleaning up (eg. SIGKILL or a crash), and deletes their info files.
+Future<void> _stopStaleCompilers() async {
+  // ponytail: no pid check on Windows, stale files there stay until the
+  // next `dart pub get` clears .dart_tool
+  if (Platform.isWindows) return;
+  Directory dir = Directory(path.dirname(_compilerInfoFile));
+  if (!dir.existsSync()) return;
+  for (FileSystemEntity file in dir.listSync()) {
+    int? owner = int.tryParse(
+      path.basename(file.path).replaceFirst('resident_compiler_info_', ''),
+    );
+    if (owner == null || owner == pid) continue;
+    // kill -0 only checks if the process still runs
+    if (Process.runSync('kill', <String>['-0', '$owner']).exitCode == 0) {
+      continue;
+    }
+    await _stopCompiler(file.path);
+  }
 }
 
 /// Runs the server and restarts it when a .dart file changes.
@@ -99,9 +125,9 @@ Future<void> serverServe({
   bool building = false;
   // the files that changed since the last reload or restart
   Set<String> changed = <String>{};
-  DateTime lastBuildEnd = DateTime(0);
   // the VM service of the running server, for hot reload
   String? vmService;
+  await _stopStaleCompilers();
 
   Future<Process> start({Completer<void>? ready}) async {
     vmService = null;
@@ -119,6 +145,7 @@ Future<void> serverServe({
 
   // reloads or restarts the server for the changed files
   Future<void> apply() async {
+    if (_stopping) return;
     List<String> files = changed.toList();
     if (files.isEmpty) return;
     bool reloadOnly = files.every(canHotReload);
@@ -133,6 +160,16 @@ Future<void> serverServe({
         print(
           '\x1B[34m[Dox] Hot reloaded in '
           '${watch.elapsedMilliseconds}ms\x1B[0m',
+        );
+        return;
+      }
+      if (building) {
+        // eg. a generated part file is half written. Restart once when the
+        // build ends.
+        changed.addAll(files);
+        print(
+          '\x1B[33m[Dox] Hot reload failed, restarting after the '
+          'build..\x1B[0m',
         );
         return;
       }
@@ -180,12 +217,10 @@ Future<void> serverServe({
     changed.add(path.relative(event.path, from: root));
     bool reloadOnly = changed.every(canHotReload);
     if (building && !reloadOnly) return;
-    // a file event right after a build is a generated file of that build.
-    // ponytail: 1 second guess, a slow disk may need more.
-    bool fromLastBuild =
-        DateTime.now().difference(lastBuildEnd) < const Duration(seconds: 1);
-    // a hot reload does not wait for build_runner
-    bool waitForBuild = withBuilder && !fromLastBuild && !reloadOnly;
+    // a generated file comes from a build, so no build follows it. A hot
+    // reload does not wait for build_runner.
+    bool waitForBuild =
+        withBuilder && !reloadOnly && !changed.every(isGeneratedFile);
     restartAfter(waitForBuild ? _buildStartWait : _debounce);
   });
 
@@ -194,21 +229,29 @@ Future<void> serverServe({
   // it (an old dox_core, or a crash), build_runner starts after 10 seconds
   // or when the server stops.
   await ready.future.timeout(const Duration(seconds: 10), onTimeout: () {});
+  if (_stopping) return;
   // the first build has no "Starting build" line
   setBuilding(true);
-  Process builder = await watchBuilder(
-    // build_runner is still working: wait longer
-    onOutput: () {
-      if (building) setBuilding(true);
-    },
-    onBuild: (bool started) {
-      setBuilding(started);
-      if (started) return;
-      lastBuildEnd = DateTime.now();
-      // only when a file changed, eg. the first build wrote new files
-      if (changed.isNotEmpty) restartAfter(_debounce);
-    },
-  );
+  Process builder;
+  try {
+    builder = await watchBuilder(
+      // build_runner is still working: wait longer
+      onOutput: () {
+        if (building) setBuilding(true);
+      },
+      onBuild: (bool started) {
+        setBuilding(started);
+        if (started) return;
+        // only when a file changed, eg. the first build wrote new files
+        if (changed.isNotEmpty) restartAfter(_debounce);
+      },
+    );
+  } catch (e) {
+    print('\x1B[31m[Dox] build_runner did not start: $e\x1B[0m');
+    withBuilder = false;
+    setBuilding(false);
+    return;
+  }
   // eg. the app has no build_runner: restart without waiting for builds
   builder.exitCode.then((_) {
     withBuilder = false;
@@ -278,28 +321,53 @@ bool canHotReload(String file) {
 /// `Isolate.spawn` share one isolate group, and a reload changes the whole
 /// group, so it reloads one isolate of each group. Returns false when the
 /// reload fails, eg. a compile error or a change the VM can not reload.
+///
+/// The whole reload has a 10 second limit. A server that is stuck (a busy
+/// loop, or paused at a breakpoint) can not hang dox: the reload fails and
+/// dox restarts the server.
 Future<bool> reloadServer(String uri) async {
-  VmService? vm;
+  Future<VmService> connecting = vmServiceConnectUri(
+    convertToWebSocketUrl(serviceProtocolUrl: Uri.parse(uri)).toString(),
+  );
   try {
-    vm = await vmServiceConnectUri(
-      convertToWebSocketUrl(serviceProtocolUrl: Uri.parse(uri)).toString(),
-    ).timeout(const Duration(seconds: 5));
-    VM info = await vm.getVM();
-    int reloaded = 0;
-    for (IsolateGroupRef ref in info.isolateGroups ?? <IsolateGroupRef>[]) {
-      IsolateGroup group = await vm.getIsolateGroup(ref.id!);
-      List<IsolateRef> isolates = group.isolates ?? <IsolateRef>[];
-      if (isolates.isEmpty) continue;
-      ReloadReport report = await vm.reloadSources(isolates.first.id!);
-      if (report.success != true) return false;
-      reloaded++;
-    }
-    return reloaded > 0;
+    return await _reload(connecting).timeout(const Duration(seconds: 10));
   } catch (_) {
     return false;
   } finally {
-    await vm?.dispose();
+    // also closes a connection that opened after the time limit
+    connecting.then(_dispose, onError: (_) {});
   }
+}
+
+Future<bool> _reload(Future<VmService> connecting) async {
+  VmService vm = await connecting;
+  VM info = await vm.getVM();
+  int reloaded = 0;
+  for (IsolateGroupRef ref in info.isolateGroups ?? <IsolateGroupRef>[]) {
+    IsolateGroup group = await vm.getIsolateGroup(ref.id!);
+    List<IsolateRef> isolates = group.isolates ?? <IsolateRef>[];
+    if (isolates.isEmpty) continue;
+    ReloadReport report = await vm.reloadSources(isolates.first.id!);
+    if (report.success != true) return false;
+    reloaded++;
+  }
+  return reloaded > 0;
+}
+
+Future<void> _dispose(VmService vm) async {
+  try {
+    await vm.dispose();
+  } catch (_) {
+    // the reload result does not depend on it
+  }
+}
+
+/// True when [file] (relative to the project) is written by build_runner:
+/// a `.g.dart` file or a file in `lib/generated/`.
+bool isGeneratedFile(String file) {
+  List<String> parts = path.split(file);
+  return file.endsWith('.g.dart') ||
+      (parts.length > 2 && parts[0] == 'lib' && parts[1] == 'generated');
 }
 
 /// Reads the VM service address from the line the Dart VM prints at start.
