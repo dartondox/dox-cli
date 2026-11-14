@@ -13,6 +13,7 @@ dependencies:
   dox_migration: ^3.2.0
   crypto: ^3.0.8
   yaml: ^3.1.4
+  vm_service: ^15.4.0
 
 dev_dependencies:
   lints: ^6.1.0

@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
+import 'package:vm_service/utils.dart';
+import 'package:vm_service/vm_service.dart';
+import 'package:vm_service/vm_service_io.dart';
 import 'package:watcher/watcher.dart';
 
 /// The server and build_runner that dox started. They stop with dox, also
@@ -67,31 +70,63 @@ Future<void> stopChildren() async {
 /// One save gives one restart: dox waits until build_runner has written the
 /// new generated files. When no build starts after a save (the file is not
 /// part of the build), the server restarts after a short wait.
-Future<void> serverServe({bool withBuilder = false}) async {
+///
+/// With [hotReload], a change in `lib/app/` only reloads the changed code in
+/// the running server (Dart VM hot reload), with no restart. Other files,
+/// like routes, providers and config, run only at start, so they still
+/// restart the server. A failed reload also restarts the server.
+Future<void> serverServe({
+  bool withBuilder = false,
+  bool hotReload = true,
+}) async {
   String root = Directory.current.path;
   DirectoryWatcher watcher = DirectoryWatcher(root);
   Timer? timer;
   Process? process;
   bool building = false;
-  // a file changed and the server did not restart for it yet
-  bool changed = false;
+  // the files that changed since the last reload or restart
+  Set<String> changed = <String>{};
   DateTime lastBuildEnd = DateTime(0);
+  // the VM service of the running server, for hot reload
+  String? vmService;
+
+  Future<Process> start({Completer<void>? ready}) {
+    vmService = null;
+    return _startServer(
+      ready: ready,
+      hotReload: hotReload,
+      onVmService: (String uri) => vmService = uri,
+    );
+  }
 
   void restartAfter(Duration wait) {
     timer?.cancel();
     timer = Timer(wait, () async {
       if (building) return; // the restart comes when the build ends
-      changed = false;
+      List<String> files = changed.toList();
+      changed.clear();
+      String? uri = vmService;
+      if (uri != null && files.every(canHotReload)) {
+        Stopwatch watch = Stopwatch()..start();
+        if (await reloadServer(uri)) {
+          print(
+            '\x1B[34m[Dox] Hot reloaded in '
+            '${watch.elapsedMilliseconds}ms\x1B[0m',
+          );
+          return;
+        }
+        print('\x1B[33m[Dox] Hot reload failed, restarting..\x1B[0m');
+      }
       process?.kill();
       // start the new server only after the old one is gone, so the port
       // is free. The exit code does not matter.
       await process?.exitCode;
-      process = await _startServer();
+      process = await start();
     });
   }
 
   Completer<void> ready = Completer<void>();
-  process = await _startServer(ready: ready);
+  process = await start(ready: ready);
 
   watcher.events.listen((WatchEvent event) {
     if (path.extension(event.path) != '.dart' ||
@@ -99,7 +134,7 @@ Future<void> serverServe({bool withBuilder = false}) async {
       return;
     }
     print("\x1B[34m[Dox] File changed: ${path.basename(event.path)}\x1B[0m");
-    changed = true;
+    changed.add(path.relative(event.path, from: root));
     if (building) return;
     // a file event right after a build is a generated file of that build.
     // ponytail: 1 second guess, a slow disk may need more.
@@ -124,15 +159,60 @@ Future<void> serverServe({bool withBuilder = false}) async {
       }
       lastBuildEnd = DateTime.now();
       // only when a file changed, eg. the first build wrote new files
-      if (changed) restartAfter(_debounce);
+      if (changed.isNotEmpty) restartAfter(_debounce);
     },
   );
   // eg. the app has no build_runner: restart without waiting for builds
   builder.exitCode.then((_) {
     withBuilder = false;
     building = false;
-    if (changed) restartAfter(_debounce);
+    if (changed.isNotEmpty) restartAfter(_debounce);
   });
+}
+
+/// True when a change of [file] (relative to the project) can be hot
+/// reloaded. Only code in `lib/app/` (controllers, services, models, ...).
+/// Routes, providers, config, the generated DI container, `bin/` and `db/`
+/// run only at start, so they need a restart.
+bool canHotReload(String file) {
+  List<String> parts = path.split(file);
+  return parts.length > 2 && parts[0] == 'lib' && parts[1] == 'app';
+}
+
+/// Hot reloads the server behind the VM service [uri]. Isolates made with
+/// `Isolate.spawn` share one isolate group, and a reload changes the whole
+/// group, so it reloads one isolate of each group. Returns false when the
+/// reload fails, eg. a compile error or a change the VM can not reload.
+Future<bool> reloadServer(String uri) async {
+  VmService? vm;
+  try {
+    vm = await vmServiceConnectUri(
+      convertToWebSocketUrl(serviceProtocolUrl: Uri.parse(uri)).toString(),
+    ).timeout(const Duration(seconds: 5));
+    VM info = await vm.getVM();
+    int reloaded = 0;
+    for (IsolateGroupRef ref in info.isolateGroups ?? <IsolateGroupRef>[]) {
+      IsolateGroup group = await vm.getIsolateGroup(ref.id!);
+      List<IsolateRef> isolates = group.isolates ?? <IsolateRef>[];
+      if (isolates.isEmpty) continue;
+      ReloadReport report = await vm.reloadSources(isolates.first.id!);
+      if (report.success != true) return false;
+      reloaded++;
+    }
+    return reloaded > 0;
+  } catch (_) {
+    return false;
+  } finally {
+    await vm?.dispose();
+  }
+}
+
+/// Reads the VM service address from the line the Dart VM prints at start.
+/// Returns null for any other line.
+String? vmServiceUri(String line) {
+  return RegExp(r'The Dart VM service is listening on (\S+)')
+      .firstMatch(line)
+      ?.group(1);
 }
 
 /// Wait this long after the last change before the restart.
@@ -163,8 +243,13 @@ bool? buildRunnerBuildState(String line) {
 }
 
 /// Starts `bin/server.dart`. [ready] completes when the server prints
-/// "Server started at" or stops.
-Future<Process> _startServer({Completer<void>? ready}) async {
+/// "Server started at" or stops. With [hotReload], the VM service runs on a
+/// free local port and [onVmService] gets its address.
+Future<Process> _startServer({
+  Completer<void>? ready,
+  bool hotReload = false,
+  void Function(String uri)? onVmService,
+}) async {
   Directory(path.dirname(_compilerInfoFile)).createSync(recursive: true);
   _usesResidentCompiler = true;
   // the resident compiler keeps the compiled app in memory, so a restart
@@ -176,12 +261,16 @@ Future<Process> _startServer({Completer<void>? ready}) async {
     '--quiet',
     // `=` is needed: dart run passes the two-word form on as a VM flag
     '--resident-compiler-info-file=$_compilerInfoFile',
+    // port 0 = a free port. It listens on localhost only.
+    if (hotReload) ...<String>['--enable-vm-service=0', '--no-serve-devtools'],
     'bin/server.dart',
   ]);
   _track(process);
   void show(String line) {
     if (line.isEmpty) return;
     print(line);
+    String? uri = vmServiceUri(line);
+    if (uri != null) onVmService?.call(uri);
     if (line.contains('Server started at') && !(ready?.isCompleted ?? true)) {
       ready!.complete();
     }

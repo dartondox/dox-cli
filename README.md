@@ -24,7 +24,7 @@ If your shell can not find `dox`, add `$HOME/.pub-cache/bin` to your `PATH`.
 dox create my_app            # a new project from the starter template
 cd my_app
 dart pub get
-dox s                        # dev server, restarts when a file changes
+dox s                        # dev server, hot reloads or restarts when a file changes
 ```
 
 `dox create` also makes the `.env` file with a new `APP_KEY`. Do not copy `.env.example` over it, or you lose that key.
@@ -34,7 +34,7 @@ dox s                        # dev server, restarts when a file changes
 | Command | What it does |
 | --- | --- |
 | `dox create <name>` | create a new project |
-| `dox serve` (or `dox s`) | start the dev server with `build_runner watch` |
+| `dox serve` (or `dox s`) `[--ignore-build-runner] [--no-reload]` | start the dev server with `build_runner watch`. A change in `lib/app/` hot reloads, other changes restart the server |
 | `dox build` | build the native (AOT) bundle into `build/bundle` |
 | `dox make:controller <name> [-r] [--api] [--model=<model>]` | create a controller. `-r` makes a resource controller, `--api` one without `create` and `edit`, `--model` one that uses the model |
 | `dox make:model <name> [-m] [-c] [-r] [-f] [-s] [-a] [--api]` | create a model. `-m` migration, `-c` controller, `-r` resource controller, `--api` API resource controller, `-f` factory, `-s` seeder, `-a` all of them (`-m -f -s -r`). Join flags like `-mcr` |

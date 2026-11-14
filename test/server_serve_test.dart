@@ -32,6 +32,27 @@ void main() {
     expect(isIgnoredWatchPath('/app/bin/server.dart', root), isFalse);
   });
 
+  test('dox serve hot reloads only files in lib/app/', () {
+    expect(canHotReload('lib/app/http/controllers/a.controller.dart'), isTrue);
+    expect(canHotReload('lib/app/models/user/user.model.g.dart'), isTrue);
+    expect(canHotReload('lib/routes/api.dart'), isFalse);
+    expect(canHotReload('lib/providers/orm_provider.dart'), isFalse);
+    expect(canHotReload('lib/config/app.dart'), isFalse);
+    expect(canHotReload('lib/generated/container.g.dart'), isFalse);
+    expect(canHotReload('lib/app.dart'), isFalse);
+    expect(canHotReload('bin/server.dart'), isFalse);
+  });
+
+  test('dox serve reads the VM service address', () {
+    expect(
+      vmServiceUri(
+        'The Dart VM service is listening on http://127.0.0.1:65010/9S0W=/',
+      ),
+      'http://127.0.0.1:65010/9S0W=/',
+    );
+    expect(vmServiceUri('Server started at http://[::]:3000'), isNull);
+  });
+
   test('dox serve reads the start and end of a build_runner build', () {
     expect(buildRunnerBuildState('Starting build #2.'), isTrue);
     expect(

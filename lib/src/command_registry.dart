@@ -166,18 +166,21 @@ class CommandRegistry {
     // Serve commands
     CommandDefinition(
       command: 'serve',
-      helpInfo: 'serve or s [--ignore-build-runner]',
+      helpInfo: 'serve or s [--ignore-build-runner] [--no-reload]',
       description: 'Start the development server',
       category: CommandCategory.development,
       aliases: ['server', 's'],
       minArgs: 0,
-      maxArgs: 1,
+      maxArgs: 2,
       function: (args) async {
-        if (args.isNotEmpty && args[0] != '--ignore-build-runner') {
-          print(serveOptionWarning(args[0]));
+        for (String arg in args) {
+          if (arg != '--ignore-build-runner' && arg != '--no-reload') {
+            print(serveOptionWarning(arg));
+          }
         }
         serverServe(
-          withBuilder: args.isEmpty || args[0] != '--ignore-build-runner',
+          withBuilder: !args.contains('--ignore-build-runner'),
+          hotReload: !args.contains('--no-reload'),
         );
       },
     ),
