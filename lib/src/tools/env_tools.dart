@@ -2,14 +2,19 @@ import 'dart:io';
 
 /// Makes the typed env class (`lib/config/env.dart`) from `.env.example`.
 ///
-/// - digits give `int` with the example value as default
+/// - digits give `int` with the example value as default. A number with a
+///   leading zero (`02134`) is a `String`, so the zero is not lost.
 /// - true/false give `bool` with the example value as default
 /// - an empty value gives an optional `String?`
-/// - any other value gives a required `String` (no default, so a secret
-///   from the example never becomes a default)
+/// - any other value gives a required `String` (no default)
+/// - a key that looks like a secret ([secretKey]) is always a required
+///   `String`, so a secret from the example never becomes a default
+/// - `export KEY=value` is read like `KEY=value`
 /// - `#` comment lines above a key become its doc comment
 class EnvScaffold {
-  static final RegExp _digits = RegExp(r'^-?\d+$');
+  static final RegExp _digits = RegExp(r'^-?(0|[1-9]\d*)$');
+
+  static final RegExp _export = RegExp(r'^export\s+');
 
   String build(String example) {
     StringBuffer getters = StringBuffer();
@@ -24,6 +29,7 @@ class EnvScaffold {
         comments.add(text.substring(1).trim());
         continue;
       }
+      text = text.replaceFirst(_export, '');
       int equal = text.indexOf('=');
       if (equal < 1) continue;
       String key = text.substring(0, equal).trim();
@@ -33,9 +39,13 @@ class EnvScaffold {
         getters.writeln('  /// $comment');
       }
       comments.clear();
-      String name = camelCase(key);
-      if (upperSnake(name) != key) getters.writeln("  @EnvKey('$key')");
-      getters.writeln('  ${_getter(name, value)}');
+      String name = getterName(key);
+      // the name must give the key under the old and the new rule of
+      // dox_builder, else the key is written out
+      if (upperSnake(name) != key || acronymUpperSnake(name) != key) {
+        getters.writeln("  @EnvKey('$key')");
+      }
+      getters.writeln('  ${_getter(name, value, secretKey(key))}');
     }
 
     return '''
@@ -62,8 +72,9 @@ final AppEnv env = AppEnv.load();
 ''';
   }
 
-  String _getter(String name, String value) {
+  String _getter(String name, String value, bool secret) {
     if (value.isEmpty) return 'String? get $name;';
+    if (secret) return 'String get $name;';
     if (_digits.hasMatch(value)) return 'int get $name => $value;';
     String lower = value.toLowerCase();
     if (lower == 'true' || lower == 'false') {
@@ -86,6 +97,82 @@ final AppEnv env = AppEnv.load();
   }
 }
 
+/// Parts of a key that mark a secret: `DB_PASSWORD`, `APP_KEY`.
+const Set<String> _secretParts = <String>{
+  'PASSWORD',
+  'PASSWD',
+  'PASS',
+  'PWD',
+  'SECRET',
+  'KEY',
+  'TOKEN',
+  'SALT',
+  'CREDENTIAL',
+  'CREDENTIALS',
+  'PRIVATE',
+};
+
+/// True when a part of [key] (split on `_`) marks a secret. Its value in
+/// `.env.example` must never become a default in the code.
+bool secretKey(String key) {
+  for (String part in key.toUpperCase().split('_')) {
+    if (_secretParts.contains(part)) return true;
+  }
+  return false;
+}
+
+/// Words that can not be a getter name.
+const Set<String> _reserved = <String>{
+  'assert',
+  'break',
+  'case',
+  'catch',
+  'class',
+  'const',
+  'continue',
+  'default',
+  'do',
+  'else',
+  'enum',
+  'extends',
+  'false',
+  'final',
+  'finally',
+  'for',
+  'if',
+  'in',
+  'is',
+  'new',
+  'null',
+  'rethrow',
+  'return',
+  'super',
+  'switch',
+  'this',
+  'throw',
+  'true',
+  'try',
+  'var',
+  'void',
+  'when',
+  'while',
+  'with',
+  'await',
+  'yield',
+};
+
+/// A valid getter name for [key]: `APP_NAME` => `appName`.
+/// A reserved word or a name that starts with a digit gets `env` in front:
+/// `CLASS` => `envClass`, `1ST` => `env1st`. Other characters are dropped.
+String getterName(String key) {
+  String name = camelCase(key).replaceAll(RegExp(r'[^A-Za-z0-9_]'), '');
+  if (name.isEmpty) return 'env';
+  if (_reserved.contains(name) || RegExp(r'^\d').hasMatch(name)) {
+    return 'env${name[0].toUpperCase()}${name.substring(1)}';
+  }
+  return name;
+}
+
 /// `APP_NAME` => `appName`
 String camelCase(String key) {
   List<String> words = key.toLowerCase().split('_');
@@ -106,6 +193,29 @@ String upperSnake(String name) {
     out.write(char.toUpperCase());
   }
   return out.toString();
+}
+
+/// `dbURL` => `DB_URL`, `s3Bucket` => `S3_BUCKET`. The rule for
+/// acronyms: a run of capitals is one word.
+String acronymUpperSnake(String name) {
+  StringBuffer out = StringBuffer();
+  for (int i = 0; i < name.length; i++) {
+    if (i > 0 && _upper(name[i])) {
+      bool afterUpper = _upper(name[i - 1]);
+      bool beforeLower = i + 1 < name.length && _lower(name[i + 1]);
+      if (!afterUpper || beforeLower) out.write('_');
+    }
+    out.write(name[i].toUpperCase());
+  }
+  return out.toString();
+}
+
+bool _upper(String char) {
+  return char != char.toLowerCase();
+}
+
+bool _lower(String char) {
+  return char != char.toUpperCase();
 }
 
 /// `dox env:generate`: writes `lib/config/env.dart` from `.env.example`.
@@ -134,6 +244,60 @@ bool envGenerate() {
   return true;
 }
 
+/// The script that `dox env:check` runs in the app [root] of package
+/// [package].
+///
+/// `.env` must be read with the same `Env.flags` as the app, or a value
+/// like `${PORT}` gives a false error. The app sets `Env.flags` from the
+/// flags of its `AppConfig`. So when `lib/config/app.dart` has an
+/// `appConfig`, the script reads `appConfig.flags` first. The config often
+/// reads the env itself, so a bad env can throw. Then it tries again with
+/// `envExpand` on. When that also throws, it uses the default flags.
+String envCheckScript(String package, String root) {
+  File config = File('$root/lib/config/app.dart');
+  bool hasConfig =
+      config.existsSync() &&
+      RegExp(r'\bappConfig\s*=').hasMatch(config.readAsStringSync());
+  String import = hasConfig
+      ? "import 'package:$package/config/app.dart';\n"
+      : '';
+  String read = hasConfig
+      ? '''
+      Env.flags = CoreFlags(envExpand: expand);
+      Env().env = <String, String>{};
+      return appConfig.flags;'''
+      : '''
+      return null;''';
+  return '''
+import 'dart:io';
+
+${import}import 'package:$package/config/env.dart';
+import 'package:dox_core/dox_core.dart';
+
+/// the flags of the app config, or null when it throws
+CoreFlags? appFlags(bool expand) {
+  try {$read
+  } catch (_) {
+    return null;
+  }
+}
+
+void main() {
+  CoreFlags flags = appFlags(false) ?? appFlags(true) ?? const CoreFlags();
+  // read .env again, with the flags of the app
+  Env.flags = flags;
+  Env().env = <String, String>{};
+  try {
+    AppEnv.load();
+    print('The env is valid.');
+  } on EnvException catch (e) {
+    print(e);
+    exitCode = 1;
+  }
+}
+''';
+}
+
 /// `dox env:check`: loads `AppEnv` from `lib/config/env.dart` with the
 /// current env and `.env`. Prints every missing or bad key (exit code 1).
 Future<void> envCheck() async {
@@ -154,22 +318,7 @@ Future<void> envCheck() async {
   }
   File script = File('$root/.dart_tool/dox/env_check.dart');
   script.createSync(recursive: true);
-  script.writeAsStringSync('''
-import 'dart:io';
-
-import 'package:${name.group(1)}/config/env.dart';
-import 'package:dox_core/dox_core.dart';
-
-void main() {
-  try {
-    AppEnv.load();
-    print('The env is valid.');
-  } on EnvException catch (e) {
-    print(e);
-    exitCode = 1;
-  }
-}
-''');
+  script.writeAsStringSync(envCheckScript(name.group(1)!, root));
   String exe = Platform.resolvedExecutable;
   String dart = exe.split(Platform.pathSeparator).last.startsWith('dart')
       ? exe

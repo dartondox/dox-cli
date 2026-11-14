@@ -63,10 +63,15 @@ String newKey() {
   );
 }
 
+/// An `APP_KEY` line: `APP_KEY=x`, `export APP_KEY=x`, `APP_KEY = x`.
+final RegExp _keyLine = RegExp(r'^\s*(export\s+)?APP_KEY\s*=');
+
 /// Sets `APP_KEY` in `.env` to [secret].
 ///
-/// Only the `APP_KEY` line changes. Every other line (comments, blank
+/// Only the `APP_KEY` lines change. Every other line (comments, blank
 /// lines, quotes, values with more than one `=`) stays as it is, in order.
+/// `export APP_KEY=x` keeps its `export`. When there are more `APP_KEY`
+/// lines, each one gets the new key, so no old key is left to win.
 /// When there is no `APP_KEY`, it is added as the first line.
 void overrideKey(String secret, [String? path]) {
   final file = File(path ?? '${Directory.current.path}/.env');
@@ -74,11 +79,12 @@ void overrideKey(String secret, [String? path]) {
   bool found = false;
   for (int i = 0; i < lines.length; i++) {
     String line = lines[i];
-    int eq = line.indexOf('=');
-    if (eq < 0 || line.substring(0, eq).trim() != 'APP_KEY') continue;
+    RegExpMatch? match = _keyLine.firstMatch(line);
+    if (match == null) continue;
     // Keep a Windows line end (\r) when the file has one.
     String end = line.endsWith('\r') ? '\r' : '';
-    lines[i] = 'APP_KEY=$secret$end';
+    String export = match[1] == null ? '' : 'export ';
+    lines[i] = '${export}APP_KEY=$secret$end';
     found = true;
   }
   if (!found) lines.insert(0, 'APP_KEY=$secret');
