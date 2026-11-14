@@ -420,6 +420,14 @@ bool isGeneratedFile(String file) {
       (parts.length > 2 && parts[0] == 'lib' && parts[1] == 'generated');
 }
 
+/// True for a server output line that dox does not show: the DevTools link.
+/// The VM service link above it opens DevTools too, so it is the same link.
+bool isHiddenServerLine(String line) {
+  return line.startsWith(
+    'The Dart DevTools debugger and profiler is available',
+  );
+}
+
 /// Reads the VM service address from the line the Dart VM prints at start.
 /// Returns null for any other line.
 String? vmServiceUri(String line) {
@@ -500,7 +508,7 @@ Future<Process> _startServer({
   ]);
   _track(process);
   void show(String line) {
-    if (line.isEmpty) return;
+    if (line.isEmpty || isHiddenServerLine(line)) return;
     print(line);
     String? uri = vmServiceUri(line);
     if (uri != null) onVmService?.call(uri);
