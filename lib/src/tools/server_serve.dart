@@ -30,7 +30,7 @@ void _track(Process process) {
     if (!Platform.isWindows) ProcessSignal.sigterm,
     if (!Platform.isWindows) ProcessSignal.sighup,
   ]) {
-    signal.watch().listen((_) => stopChildren());
+    signal.watch().listen(stopChildren);
   }
 }
 
@@ -50,9 +50,13 @@ bool _stopping = false;
 /// Stops the child processes, waits up to 5 seconds for them, then exits.
 /// It also stops the resident compiler of `dox serve`, so it does not stay
 /// alive in the background.
-Future<void> stopChildren() async {
-  // a second Ctrl+C while dox is stopping: exit now, do not wait
-  if (_stopping) exit(1);
+Future<void> stopChildren([ProcessSignal? signal]) async {
+  if (_stopping) {
+    // a second Ctrl+C: the user wants out now. Other signals (eg. SIGHUP
+    // then SIGTERM when a terminal closes) let the first stop finish.
+    if (signal == ProcessSignal.sigint) exit(1);
+    return;
+  }
   _stopping = true;
   // a child that ignores SIGTERM gets SIGKILL after 5 seconds
   await Future.wait(_children.toList().map(stopProcess));
@@ -148,13 +152,17 @@ Future<void> serverServe({
     if (_stopping) return;
     List<String> files = changed.toList();
     if (files.isEmpty) return;
-    bool reloadOnly = files.every(canHotReload);
+    String? uri = vmService;
+    bool reload = shouldHotReload(
+      files,
+      hotReload: hotReload,
+      hasVmService: uri != null,
+    );
     // the restart comes when the build ends. A hot reload does not wait:
     // it runs now, and the generated files of the build come after it.
-    if (building && !reloadOnly) return;
+    if (building && !reload) return;
     changed.removeAll(files);
-    String? uri = vmService;
-    if (uri != null && reloadOnly) {
+    if (uri != null && reload) {
       Stopwatch watch = Stopwatch()..start();
       if (await reloadServer(uri)) {
         print(
@@ -177,6 +185,8 @@ Future<void> serverServe({
     }
     Process? old = process;
     if (old != null) await stopProcess(old);
+    // Ctrl+C came while the old server stopped: do not start a new one
+    if (_stopping) return;
     process = await start();
   }
 
@@ -215,13 +225,18 @@ Future<void> serverServe({
     }
     print("\x1B[34m[Dox] File changed: ${path.basename(event.path)}\x1B[0m");
     changed.add(path.relative(event.path, from: root));
-    bool reloadOnly = changed.every(canHotReload);
-    if (building && !reloadOnly) return;
-    // a generated file comes from a build, so no build follows it. A hot
-    // reload does not wait for build_runner.
-    bool waitForBuild =
-        withBuilder && !reloadOnly && !changed.every(isGeneratedFile);
-    restartAfter(waitForBuild ? _buildStartWait : _debounce);
+    Duration? wait = waitAfterChange(
+      changed,
+      reload: shouldHotReload(
+        changed,
+        hotReload: hotReload,
+        hasVmService: vmService != null,
+      ),
+      building: building,
+      withBuilder: withBuilder,
+    );
+    // null: the build that runs now restarts the server when it ends
+    if (wait != null) restartAfter(wait);
   });
 
   if (!withBuilder) return;
@@ -242,8 +257,10 @@ Future<void> serverServe({
       onBuild: (bool started) {
         setBuilding(started);
         if (started) return;
-        // only when a file changed, eg. the first build wrote new files
-        if (changed.isNotEmpty) restartAfter(_debounce);
+        // only when a file changed, eg. the first build wrote new files.
+        // The file events of the build can come a bit late (macOS), so wait
+        // a little longer: they then join this restart.
+        if (changed.isNotEmpty) restartAfter(_afterBuild);
       },
     );
   } catch (e) {
@@ -301,6 +318,39 @@ Future<void> stopProcess(Process process) async {
       return process.exitCode;
     },
   );
+}
+
+/// True when dox hot reloads [files] instead of a restart: hot reload is on
+/// ([hotReload], no `--no-reload`), the server has its VM service up
+/// ([hasVmService]), and every file can be hot reloaded.
+bool shouldHotReload(
+  Iterable<String> files, {
+  required bool hotReload,
+  required bool hasVmService,
+}) {
+  return hotReload &&
+      hasVmService &&
+      files.isNotEmpty &&
+      files.every(canHotReload);
+}
+
+/// How long dox waits after a file change before it reloads or restarts.
+/// [changed] are all files changed since the last reload or restart, and
+/// [reload] is [shouldHotReload] for them. Returns null when a build runs
+/// and a restart is needed: the restart then comes when the build ends.
+Duration? waitAfterChange(
+  Iterable<String> changed, {
+  required bool reload,
+  required bool building,
+  required bool withBuilder,
+}) {
+  // a hot reload does not wait for build_runner
+  if (reload) return _debounce;
+  if (building) return null;
+  // a generated file comes from a build, so no build follows it. Any other
+  // change starts a build: wait for it, so the restart uses its output.
+  if (withBuilder && !changed.every(isGeneratedFile)) return _buildStartWait;
+  return _debounce;
 }
 
 /// True when a change of [file] (relative to the project) can be hot
@@ -381,6 +431,9 @@ String? vmServiceUri(String line) {
 /// Wait this long after the last change before the restart.
 const Duration _debounce = Duration(milliseconds: 200);
 
+/// Wait this long after a build ends before the restart.
+const Duration _afterBuild = Duration(milliseconds: 500);
+
 /// With build_runner, wait this long for a build to start after a save.
 /// When no build starts, the server restarts anyway.
 /// ponytail: a fixed guess. A very slow build_runner start can still give
@@ -427,6 +480,8 @@ Future<Process> _startServer({
   bool hotReload = false,
   void Function(String uri)? onVmService,
 }) async {
+  // dox is stopping: a new server would only leave a compiler behind
+  if (_stopping) throw StateError('dox is stopping, no new server');
   Directory(path.dirname(_compilerInfoFile)).createSync(recursive: true);
   _usesResidentCompiler = true;
   // the resident compiler keeps the compiled app in memory, so a restart
@@ -438,8 +493,9 @@ Future<Process> _startServer({
     '--quiet',
     // `=` is needed: dart run passes the two-word form on as a VM flag
     '--resident-compiler-info-file=$_compilerInfoFile',
-    // port 0 = a free port. It listens on localhost only.
-    if (hotReload) ...<String>['--enable-vm-service=0', '--no-serve-devtools'],
+    // port 0 = a free port. It listens on localhost only. DevTools is served
+    // too: the VM prints its link, and it does not slow the start.
+    if (hotReload) '--enable-vm-service=0',
     'bin/server.dart',
   ]);
   _track(process);

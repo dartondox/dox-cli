@@ -54,6 +54,76 @@ void main() {
     expect(isGeneratedFile('bin/server.dart'), isFalse);
   });
 
+  test('dox serve hot reloads only when it can', () {
+    List<String> controller = <String>['lib/app/a.controller.dart'];
+    expect(
+      shouldHotReload(controller, hotReload: true, hasVmService: true),
+      isTrue,
+    );
+    // --no-reload
+    expect(
+      shouldHotReload(controller, hotReload: false, hasVmService: true),
+      isFalse,
+    );
+    // the server has no VM service yet, or it crashed
+    expect(
+      shouldHotReload(controller, hotReload: true, hasVmService: false),
+      isFalse,
+    );
+    expect(
+      shouldHotReload(<String>[], hotReload: true, hasVmService: true),
+      isFalse,
+    );
+    expect(
+      shouldHotReload(
+        <String>['lib/app/a.controller.dart', 'lib/routes/api.dart'],
+        hotReload: true,
+        hasVmService: true,
+      ),
+      isFalse,
+    );
+  });
+
+  test('dox serve waits for build_runner only when it must', () {
+    List<String> model = <String>['lib/app/user.model.dart'];
+    List<String> generated = <String>['lib/app/user.model.g.dart'];
+    // a hot reload never waits for a build
+    expect(
+      waitAfterChange(model, reload: true, building: true, withBuilder: true),
+      const Duration(milliseconds: 200),
+    );
+    // --no-reload during a build: the build end restarts it, once
+    expect(
+      waitAfterChange(model, reload: false, building: true, withBuilder: true),
+      isNull,
+    );
+    // a save starts a build: wait for it
+    expect(
+      waitAfterChange(model, reload: false, building: false, withBuilder: true),
+      const Duration(seconds: 3),
+    );
+    // a generated file: no build follows
+    expect(
+      waitAfterChange(
+        generated,
+        reload: false,
+        building: false,
+        withBuilder: true,
+      ),
+      const Duration(milliseconds: 200),
+    );
+    // no build_runner
+    expect(
+      waitAfterChange(
+        model,
+        reload: false,
+        building: false,
+        withBuilder: false,
+      ),
+      const Duration(milliseconds: 200),
+    );
+  });
+
   test('dox serve reads the VM service address', () {
     expect(
       vmServiceUri(
