@@ -502,7 +502,7 @@ Future<Process> _startServer({
     // `=` is needed: dart run passes the two-word form on as a VM flag
     '--resident-compiler-info-file=$_compilerInfoFile',
     // port 0 = a free port. It listens on localhost only. DevTools is served
-    // too: the VM prints its link, and it does not slow the start.
+    // too (it does not slow the start): the VM service link opens it.
     if (hotReload) '--enable-vm-service=0',
     'bin/server.dart',
   ]);
