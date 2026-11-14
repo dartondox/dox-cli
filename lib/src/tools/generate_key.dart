@@ -75,7 +75,8 @@ final RegExp _keyLine = RegExp(r'^\s*(export\s+)?APP_KEY\s*=');
 /// When there is no `APP_KEY`, it is added as the first line.
 void overrideKey(String secret, [String? path]) {
   final file = File(path ?? '${Directory.current.path}/.env');
-  List<String> lines = file.readAsStringSync().split('\n');
+  String text = file.readAsStringSync();
+  List<String> lines = text.split('\n');
   bool found = false;
   for (int i = 0; i < lines.length; i++) {
     String line = lines[i];
@@ -83,10 +84,11 @@ void overrideKey(String secret, [String? path]) {
     if (match == null) continue;
     // Keep a Windows line end (\r) when the file has one.
     String end = line.endsWith('\r') ? '\r' : '';
-    String export = match[1] == null ? '' : 'export ';
-    lines[i] = '${export}APP_KEY=$secret$end';
+    lines[i] = '${match[1] ?? ''}APP_KEY=$secret$end';
     found = true;
   }
-  if (!found) lines.insert(0, 'APP_KEY=$secret');
+  // a new line gets the line end of the file
+  String end = text.contains('\r\n') ? '\r' : '';
+  if (!found) lines.insert(0, 'APP_KEY=$secret$end');
   file.writeAsStringSync(lines.join('\n'));
 }

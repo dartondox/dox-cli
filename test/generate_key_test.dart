@@ -78,6 +78,24 @@ void main() {
     expect(env.readAsStringSync(), 'APP_KEY=new\n# APP_KEY=old\nAPP_KEYS=x\n');
   });
 
+  test('overrideKey keeps a tab after `export`', () {
+    env.writeAsStringSync('export\tAPP_KEY=old\n');
+    overrideKey('new', env.path);
+    expect(env.readAsStringSync(), 'export\tAPP_KEY=new\n');
+  });
+
+  test('overrideKey keeps CRLF line ends', () {
+    env.writeAsStringSync('APP_KEY=old\r\nA=1\r\n');
+    overrideKey('new', env.path);
+    expect(env.readAsStringSync(), 'APP_KEY=new\r\nA=1\r\n');
+  });
+
+  test('overrideKey adds APP_KEY with a CRLF end in a CRLF file', () {
+    env.writeAsStringSync('A=1\r\nB=2\r\n');
+    overrideKey('new', env.path);
+    expect(env.readAsStringSync(), 'APP_KEY=new\r\nA=1\r\nB=2\r\n');
+  });
+
   group('generateKey', () {
     const Map<String, String> prod = <String, String>{'APP_ENV': 'production'};
 

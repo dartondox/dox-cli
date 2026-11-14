@@ -103,6 +103,54 @@ APP_PORT=3000
       expect(read, keys);
     });
 
+    test('a key that holds a secret word anywhere has no default', () {
+      List<String> keys = <String>[
+        'APIKEY',
+        'SECRETKEY',
+        'APP_KEYS',
+        'TOKENS',
+        'PASSCODE',
+        'PIN',
+        'OTP',
+        'AUTH',
+        'JWT',
+        'DSN',
+        'PASSPHRASE',
+      ];
+      String out = EnvScaffold().build('${keys.join('=1234\n')}=1234');
+      expect(out, isNot(contains('1234')));
+      expect(out, isNot(contains('int get')));
+    });
+
+    test('a number over 64 bits is a String', () {
+      String out = EnvScaffold().build(
+        'BIG=99999999999999999999\nMAX=9223372036854775807\n',
+      );
+      expect(out, contains('String get big;'));
+      expect(out, isNot(contains('99999999999999999999')));
+      expect(out, contains('int get max => 9223372036854775807;'));
+    });
+
+    test('two keys with the same getter name get unique names', () {
+      String out = EnvScaffold().build('A_B=x\nA__B=y\nCLASS=z\nENV_CLASS=w\n');
+      expect(out, contains('  String get aB;'));
+      expect(out, contains("@EnvKey('A__B')\n  String get aB2;"));
+      expect(out, contains("@EnvKey('CLASS')\n  String get envClass;"));
+      expect(out, contains("@EnvKey('ENV_CLASS')\n  String get envClass2;"));
+    });
+
+    test('a key that clashes with a member of the class is renamed', () {
+      String out = EnvScaffold().build(
+        'LOAD=x\nHASH_CODE=x\nTO_STRING=x\nR=x\nINT=x\n_STRING=x\n',
+      );
+      expect(out, contains("@EnvKey('LOAD')\n  String get envLoad;"));
+      expect(out, contains("@EnvKey('HASH_CODE')\n  String get envHashCode;"));
+      expect(out, contains("@EnvKey('TO_STRING')\n  String get envToString;"));
+      expect(out, contains("@EnvKey('R')\n  String get envR;"));
+      expect(out, contains("@EnvKey('INT')\n  String get envInt;"));
+      expect(out, contains("@EnvKey('_STRING')\n  String get string;"));
+    });
+
     test('writes lib/config/env.dart once', () {
       Directory original = Directory.current;
       Directory temp = Directory.systemTemp.createTempSync('dox_env_test_');
@@ -139,22 +187,125 @@ import 'package:my_app/config/env.dart';
 
 AppConfig appConfig = AppConfig(serverPort: env.appPort);
 ''';
-    const String dotEnv = 'PORT=3000\nAPP_PORT=\${PORT}\n';
+    // like the template: Env.flags first, then the config
+    const String serverSetsFlags = '''
+import 'package:dox_core/dox_core.dart';
+import 'package:my_app/config/app.dart';
 
-    test('uses the envExpand flag of the app config', () async {
-      ProcessResult r = await envCheckIn(dotEnv, appConfig: expandOn);
+void main() {
+  // Env.flags = const CoreFlags(); (a comment, not code)
+  Env.flags = flags;
+  print(appConfig);
+}
+''';
+    // Env.flags is set after the config read the env: too late
+    const String serverSetsFlagsLate = '''
+import 'package:dox_core/dox_core.dart';
+import 'package:my_app/config/app.dart';
+
+void main() {
+  print(appConfig);
+  Env.flags = flags;
+}
+''';
+    const String serverNoFlags = '''
+import 'package:my_app/config/app.dart';
+
+void main() {
+  print(appConfig);
+}
+''';
+    const String dotEnv = 'APP_KEY=k\nPORT=3000\nAPP_PORT=\${PORT}\n';
+
+    test('main sets Env.flags from the config: valid', () async {
+      ProcessResult r = await envCheckIn(
+        dotEnv,
+        appConfig: expandOn,
+        server: serverSetsFlags,
+      );
       expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
       expect('${r.stdout}', contains('The env is valid.'));
     });
 
-    test('with the flag off, the same .env is not valid', () async {
-      ProcessResult r = await envCheckIn(dotEnv, appConfig: expandOff);
+    test('config says envExpand, main never sets Env.flags', () async {
+      ProcessResult r = await envCheckIn(
+        dotEnv,
+        appConfig: expandOn,
+        server: serverNoFlags,
+      );
       expect(r.exitCode, 1, reason: '${r.stdout}${r.stderr}');
+      // the real app throws this at start
       expect('${r.stdout}', contains('APP_PORT must be an int'));
+      expect('${r.stdout}', contains('Env.flags'));
+      expect('${r.stdout}', isNot(contains('The env is valid.')));
     });
 
-    test('works with no lib/config/app.dart', () async {
-      ProcessResult r = await envCheckIn('APP_PORT=3000\n');
+    test('config says envExpand, no variables, no Env.flags', () async {
+      ProcessResult r = await envCheckIn(
+        'APP_KEY=k\nAPP_PORT=3000\n',
+        appConfig: expandOn,
+        server: serverNoFlags,
+      );
+      expect(r.exitCode, 1, reason: '${r.stdout}${r.stderr}');
+      expect('${r.stdout}', contains('Env.flags'));
+    });
+
+    test('Env.flags set after the env is read counts as not set', () async {
+      ProcessResult r = await envCheckIn(
+        dotEnv,
+        appConfig: expandOn,
+        server: serverSetsFlagsLate,
+      );
+      expect(r.exitCode, 1, reason: '${r.stdout}${r.stderr}');
+      expect('${r.stdout}', contains('APP_PORT must be an int'));
+      expect('${r.stdout}', contains('Env.flags'));
+    });
+
+    test('the config throws: only the real errors are listed', () async {
+      // APP_KEY is missing, so building appConfig throws
+      ProcessResult r = await envCheckIn(
+        'PORT=3000\nAPP_PORT=\${PORT}\n',
+        appConfig: expandOn,
+        server: serverSetsFlags,
+      );
+      expect(r.exitCode, 1, reason: '${r.stdout}${r.stderr}');
+      expect('${r.stdout}', contains('APP_KEY is missing'));
+      expect('${r.stdout}', isNot(contains('APP_PORT')));
+    });
+
+    test('the config throws with the flag off: errors of the app', () async {
+      ProcessResult r = await envCheckIn(
+        'PORT=3000\nAPP_PORT=\${PORT}\n',
+        appConfig: expandOff,
+        server: serverNoFlags,
+      );
+      expect(r.exitCode, 1, reason: '${r.stdout}${r.stderr}');
+      expect('${r.stdout}', contains('APP_KEY is missing'));
+      expect('${r.stdout}', contains('APP_PORT must be an int'));
+      expect('${r.stdout}', isNot(contains('Env.flags')));
+    });
+
+    test('a value of Env.flags it can not read: config flags, note', () async {
+      ProcessResult r = await envCheckIn(
+        dotEnv,
+        appConfig: expandOn,
+        server: '''
+import 'package:dox_core/dox_core.dart';
+import 'package:my_app/config/app.dart';
+
+void main() {
+  Env.flags = DateTime.now().year > 0 ? flags : const CoreFlags();
+  print(appConfig);
+}
+''',
+      );
+      expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
+      expect('${r.stdout}', contains('Note: bin/server.dart sets Env.flags'));
+      expect('${r.stdout}', contains('The env is valid.'));
+    });
+
+    test('works with no lib/config/app.dart and no bin/server.dart', () async {
+      ProcessResult r = await envCheckIn('APP_KEY=k\nAPP_PORT=3000\n');
       expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
       expect('${r.stdout}', contains('The env is valid.'));
     });
@@ -177,10 +328,10 @@ class AppConfig {
 }
 
 class EnvException implements Exception {
-  final String message;
-  EnvException(this.message);
+  final List<String> errors;
+  EnvException(this.errors);
   @override
-  String toString() => 'EnvException: $message';
+  String toString() => 'EnvException: ${errors.join(', ')}';
 }
 
 class Env {
@@ -189,9 +340,11 @@ class Env {
   Env._();
   static CoreFlags flags = const CoreFlags();
   Map<String, String> env = <String, String>{};
+  bool expanded = false;
 
   void load() {
     if (env.isNotEmpty) return;
+    expanded = flags.envExpand;
     for (String line in File('.env').readAsLinesSync()) {
       int eq = line.indexOf('=');
       if (eq < 1) continue;
@@ -208,7 +361,7 @@ class Env {
 }
 ''';
 
-/// the app's `lib/config/env.dart`: APP_PORT must be an int
+/// the app's `lib/config/env.dart`: APP_KEY is needed, APP_PORT is an int
 const String fakeAppEnv = r'''
 import 'package:dox_core/dox_core.dart';
 
@@ -218,10 +371,13 @@ class AppEnv {
 
   static AppEnv load() {
     Env().load();
+    List<String> errors = <String>[];
+    if ((Env().env['APP_KEY'] ?? '').isEmpty) errors.add('APP_KEY is missing');
     String raw = Env().env['APP_PORT'] ?? '';
     int? port = int.tryParse(raw);
-    if (port == null) throw EnvException('APP_PORT must be an int: $raw');
-    return AppEnv(port);
+    if (port == null) errors.add('APP_PORT must be an int: $raw');
+    if (errors.isNotEmpty) throw EnvException(errors);
+    return AppEnv(port!);
   }
 }
 
@@ -229,7 +385,11 @@ final AppEnv env = AppEnv.load();
 ''';
 
 /// `dox env:check` in a temp app, from the source of this CLI
-Future<ProcessResult> envCheckIn(String envFile, {String? appConfig}) async {
+Future<ProcessResult> envCheckIn(
+  String envFile, {
+  String? appConfig,
+  String? server,
+}) async {
   String cli = Directory.current.path;
   Directory temp = Directory.systemTemp.createTempSync('dox_env_check_');
   try {
@@ -251,6 +411,11 @@ Future<ProcessResult> envCheckIn(String envFile, {String? appConfig}) async {
       ..writeAsStringSync(fakeAppEnv);
     if (appConfig != null) {
       File('$app/lib/config/app.dart').writeAsStringSync(appConfig);
+    }
+    if (server != null) {
+      File('$app/bin/server.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(server);
     }
     File('$app/.env').writeAsStringSync(envFile);
     String dart = Platform.resolvedExecutable;
