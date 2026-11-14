@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dox/src/tools/server_serve.dart';
@@ -34,11 +35,13 @@ void main() {
 
   test('dox serve hot reloads only files in lib/app/', () {
     expect(canHotReload('lib/app/http/controllers/a.controller.dart'), isTrue);
-    expect(canHotReload('lib/app/models/user/user.model.g.dart'), isTrue);
+    expect(canHotReload('lib/app/models/user/user.model.dart'), isTrue);
     expect(canHotReload('lib/routes/api.dart'), isFalse);
     expect(canHotReload('lib/providers/orm_provider.dart'), isFalse);
     expect(canHotReload('lib/config/app.dart'), isFalse);
     expect(canHotReload('lib/generated/container.g.dart'), isFalse);
+    // generated data (like model columns) is built once, so it restarts
+    expect(canHotReload('lib/app/models/user/user.model.g.dart'), isFalse);
     expect(canHotReload('lib/app.dart'), isFalse);
     expect(canHotReload('bin/server.dart'), isFalse);
   });
@@ -69,6 +72,78 @@ void main() {
     );
     expect(buildRunnerBuildState('json_serializable on lib/a.dart'), isNull);
   });
+
+  test('dox serve shows build_runner errors, not progress lines', () {
+    expect(
+      showBuildRunnerLine('  0s dox_builder on 26 inputs: 26 skipped'),
+      isFalse,
+    );
+    expect(
+      showBuildRunnerLine('  12s source_gen on 3 inputs; a.dart'),
+      isFalse,
+    );
+    expect(showBuildRunnerLine('Starting build #2.'), isFalse);
+    expect(
+      showBuildRunnerLine(
+        'Built with build_runner/aot in 0s; wrote 0 outputs.',
+      ),
+      isFalse,
+    );
+    expect(showBuildRunnerLine('   '), isFalse);
+    expect(
+      showBuildRunnerLine('  E dox_builder on lib/a.dart: Bad annotation'),
+      isTrue,
+    );
+    expect(showBuildRunnerLine('  W json_serializable: unused key'), isTrue);
+  });
+
+  test('SerialRunner never runs the job twice at the same time', () async {
+    int running = 0;
+    int most = 0;
+    int runs = 0;
+    Completer<void> gate = Completer<void>();
+    SerialRunner runner = SerialRunner(() async {
+      running++;
+      runs++;
+      if (running > most) most = running;
+      await gate.future;
+      running--;
+    });
+    Future<void> first = runner.run();
+    // three saves while the first job still runs
+    await runner.run();
+    await runner.run();
+    await runner.run();
+    gate.complete();
+    await first;
+    expect(most, 1, reason: 'two jobs ran at the same time');
+    // the saves during the first job give exactly one more run
+    expect(runs, 2);
+  });
+
+  test('SerialRunner keeps going after a job throws', () async {
+    int runs = 0;
+    SerialRunner runner = SerialRunner(() async {
+      runs++;
+      throw StateError('boom');
+    });
+    await runner.run();
+    await runner.run();
+    expect(runs, 2);
+  });
+
+  test('stopProcess kills a process that ignores SIGTERM', () async {
+    Process p = await Process.start('sh', <String>[
+      '-c',
+      'trap "" TERM; sleep 30',
+    ]);
+    addTearDown(() => p.kill(ProcessSignal.sigkill));
+    // let sh set the trap first
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    Stopwatch watch = Stopwatch()..start();
+    await stopProcess(p);
+    expect(watch.elapsed, lessThan(const Duration(seconds: 10)));
+  }, testOn: '!windows');
 
   test('the serve option warning shows the port that was typed', () {
     expect(serveOptionWarning('--port=3000'), contains('APP_PORT=3000 dox'));
@@ -134,6 +209,16 @@ void main() {
       // kill -0 only checks if the process still runs
       ProcessResult alive = Process.runSync('kill', <String>['-0', '$server']);
       expect(alive.exitCode, isNot(0), reason: 'the server still runs');
+      // dox stopped its resident compiler and removed its info file
+      Directory infoDir = Directory('${app.path}/.dart_tool/dox');
+      List<String> left = infoDir.existsSync()
+          ? infoDir
+                .listSync()
+                .map((FileSystemEntity e) => e.path)
+                .where((String f) => f.contains('resident_compiler_info'))
+                .toList()
+          : <String>[];
+      expect(left, isEmpty, reason: 'the resident compiler still runs');
     },
     testOn: '!windows',
     timeout: const Timeout(Duration(minutes: 1)),

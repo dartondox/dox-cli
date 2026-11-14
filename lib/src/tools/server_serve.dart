@@ -18,30 +18,37 @@ void _track(Process process) {
   process.exitCode.then((_) => _children.remove(process));
   if (_watchingSignals) return;
   _watchingSignals = true;
-  // Windows can not watch SIGTERM
+  // Windows can not watch SIGTERM and SIGHUP. SIGHUP comes when the
+  // terminal window or tab closes.
   for (ProcessSignal signal in <ProcessSignal>[
     ProcessSignal.sigint,
     if (!Platform.isWindows) ProcessSignal.sigterm,
+    if (!Platform.isWindows) ProcessSignal.sighup,
   ]) {
     signal.watch().listen((_) => stopChildren());
   }
 }
 
 /// The info file of the resident compiler that `dox serve` starts. It lives
-/// in this project, so dox only stops its own compiler, not the one of
-/// another project.
+/// in this project and has the pid of dox in its name, so dox only stops its
+/// own compiler: not the one of another project, and not the one of a
+/// second `dox serve` in the same project.
 final String _compilerInfoFile = path.join(
   Directory.current.path,
   '.dart_tool',
   'dox',
-  'resident_compiler_info',
+  'resident_compiler_info_$pid',
 );
 bool _usesResidentCompiler = false;
+bool _stopping = false;
 
 /// Stops the child processes, waits up to 5 seconds for them, then exits.
 /// It also stops the resident compiler of `dox serve`, so it does not stay
 /// alive in the background.
 Future<void> stopChildren() async {
+  // eg. Ctrl+C twice: the first call already stops everything
+  if (_stopping) return;
+  _stopping = true;
   List<Process> children = _children.toList();
   for (Process child in children) {
     child.kill();
@@ -58,6 +65,11 @@ Future<void> stopChildren() async {
       ]).timeout(const Duration(seconds: 5));
     } catch (_) {
       // dox exits anyway
+    }
+    try {
+      File(_compilerInfoFile).deleteSync();
+    } catch (_) {
+      // already gone
     }
   }
   exit(0);
@@ -82,6 +94,7 @@ Future<void> serverServe({
   String root = Directory.current.path;
   DirectoryWatcher watcher = DirectoryWatcher(root);
   Timer? timer;
+  Timer? buildTimeout;
   Process? process;
   bool building = false;
   // the files that changed since the last reload or restart
@@ -90,38 +103,68 @@ Future<void> serverServe({
   // the VM service of the running server, for hot reload
   String? vmService;
 
-  Future<Process> start({Completer<void>? ready}) {
+  Future<Process> start({Completer<void>? ready}) async {
     vmService = null;
-    return _startServer(
+    Process started = await _startServer(
       ready: ready,
       hotReload: hotReload,
       onVmService: (String uri) => vmService = uri,
     );
+    // a crashed server has no VM service anymore
+    started.exitCode.then((_) {
+      if (identical(process, started)) vmService = null;
+    });
+    return started;
   }
+
+  // reloads or restarts the server for the changed files
+  Future<void> apply() async {
+    List<String> files = changed.toList();
+    if (files.isEmpty) return;
+    bool reloadOnly = files.every(canHotReload);
+    // the restart comes when the build ends. A hot reload does not wait:
+    // it runs now, and the generated files of the build come after it.
+    if (building && !reloadOnly) return;
+    changed.removeAll(files);
+    String? uri = vmService;
+    if (uri != null && reloadOnly) {
+      Stopwatch watch = Stopwatch()..start();
+      if (await reloadServer(uri)) {
+        print(
+          '\x1B[34m[Dox] Hot reloaded in '
+          '${watch.elapsedMilliseconds}ms\x1B[0m',
+        );
+        return;
+      }
+      print('\x1B[33m[Dox] Hot reload failed, restarting..\x1B[0m');
+    }
+    Process? old = process;
+    if (old != null) await stopProcess(old);
+    process = await start();
+  }
+
+  // one reload or restart at a time, so there is never a second server
+  SerialRunner runner = SerialRunner(apply);
 
   void restartAfter(Duration wait) {
     timer?.cancel();
-    timer = Timer(wait, () async {
-      if (building) return; // the restart comes when the build ends
-      List<String> files = changed.toList();
-      changed.clear();
-      String? uri = vmService;
-      if (uri != null && files.every(canHotReload)) {
-        Stopwatch watch = Stopwatch()..start();
-        if (await reloadServer(uri)) {
-          print(
-            '\x1B[34m[Dox] Hot reloaded in '
-            '${watch.elapsedMilliseconds}ms\x1B[0m',
-          );
-          return;
-        }
-        print('\x1B[33m[Dox] Hot reload failed, restarting..\x1B[0m');
-      }
-      process?.kill();
-      // start the new server only after the old one is gone, so the port
-      // is free. The exit code does not matter.
-      await process?.exitCode;
-      process = await start();
+    timer = Timer(wait, runner.run);
+  }
+
+  void setBuilding(bool value) {
+    building = value;
+    buildTimeout?.cancel();
+    if (!value) return;
+    // build_runner may hang or wait for input and never say the build
+    // ended. When it prints nothing for a while, dox stops waiting, so a
+    // save still restarts the server. Each output line starts the wait again.
+    buildTimeout = Timer(_buildTimeout, () {
+      print(
+        '\x1B[33m[Dox] build_runner printed nothing for '
+        '${_buildTimeout.inSeconds}s, dox does not wait for it..\x1B[0m',
+      );
+      building = false;
+      if (changed.isNotEmpty) restartAfter(_debounce);
     });
   }
 
@@ -135,12 +178,15 @@ Future<void> serverServe({
     }
     print("\x1B[34m[Dox] File changed: ${path.basename(event.path)}\x1B[0m");
     changed.add(path.relative(event.path, from: root));
-    if (building) return;
+    bool reloadOnly = changed.every(canHotReload);
+    if (building && !reloadOnly) return;
     // a file event right after a build is a generated file of that build.
     // ponytail: 1 second guess, a slow disk may need more.
     bool fromLastBuild =
         DateTime.now().difference(lastBuildEnd) < const Duration(seconds: 1);
-    restartAfter(withBuilder && !fromLastBuild ? _buildStartWait : _debounce);
+    // a hot reload does not wait for build_runner
+    bool waitForBuild = withBuilder && !fromLastBuild && !reloadOnly;
+    restartAfter(waitForBuild ? _buildStartWait : _debounce);
   });
 
   if (!withBuilder) return;
@@ -149,14 +195,15 @@ Future<void> serverServe({
   // or when the server stops.
   await ready.future.timeout(const Duration(seconds: 10), onTimeout: () {});
   // the first build has no "Starting build" line
-  building = true;
+  setBuilding(true);
   Process builder = await watchBuilder(
+    // build_runner is still working: wait longer
+    onOutput: () {
+      if (building) setBuilding(true);
+    },
     onBuild: (bool started) {
-      building = started;
-      if (started) {
-        timer?.cancel();
-        return;
-      }
+      setBuilding(started);
+      if (started) return;
       lastBuildEnd = DateTime.now();
       // only when a file changed, eg. the first build wrote new files
       if (changed.isNotEmpty) restartAfter(_debounce);
@@ -165,18 +212,66 @@ Future<void> serverServe({
   // eg. the app has no build_runner: restart without waiting for builds
   builder.exitCode.then((_) {
     withBuilder = false;
-    building = false;
+    setBuilding(false);
     if (changed.isNotEmpty) restartAfter(_debounce);
   });
+}
+
+/// Runs [job] one at a time. A [run] while the job runs does not start a
+/// second job: the job runs once more after the current one ends.
+class SerialRunner {
+  SerialRunner(this.job);
+
+  final Future<void> Function() job;
+  bool _running = false;
+  bool _again = false;
+
+  Future<void> run() async {
+    if (_running) {
+      _again = true;
+      return;
+    }
+    _running = true;
+    try {
+      do {
+        _again = false;
+        try {
+          await job();
+        } catch (e) {
+          print('\x1B[31m[Dox] $e\x1B[0m');
+        }
+      } while (_again);
+    } finally {
+      _running = false;
+    }
+  }
+}
+
+/// Stops [process] and waits until it is gone, so its port is free. When it
+/// does not stop in 5 seconds (it ignores SIGTERM), it gets SIGKILL.
+Future<void> stopProcess(Process process) async {
+  process.kill();
+  await process.exitCode.timeout(
+    const Duration(seconds: 5),
+    onTimeout: () {
+      process.kill(ProcessSignal.sigkill);
+      return process.exitCode;
+    },
+  );
 }
 
 /// True when a change of [file] (relative to the project) can be hot
 /// reloaded. Only code in `lib/app/` (controllers, services, models, ...).
 /// Routes, providers, config, the generated DI container, `bin/` and `db/`
-/// run only at start, so they need a restart.
+/// run only at start, so they need a restart. Generated `.g.dart` files
+/// also need a restart: they hold data (like model columns) that is built
+/// once, and a hot reload does not build it again.
 bool canHotReload(String file) {
   List<String> parts = path.split(file);
-  return parts.length > 2 && parts[0] == 'lib' && parts[1] == 'app';
+  return parts.length > 2 &&
+      parts[0] == 'lib' &&
+      parts[1] == 'app' &&
+      !file.endsWith('.g.dart');
 }
 
 /// Hot reloads the server behind the VM service [uri]. Isolates made with
@@ -220,7 +315,12 @@ const Duration _debounce = Duration(milliseconds: 200);
 
 /// With build_runner, wait this long for a build to start after a save.
 /// When no build starts, the server restarts anyway.
-const Duration _buildStartWait = Duration(milliseconds: 1500);
+/// ponytail: a fixed guess. A very slow build_runner start can still give
+/// two restarts; then make it an option.
+const Duration _buildStartWait = Duration(seconds: 3);
+
+/// Stop waiting for a build when build_runner prints nothing for this long.
+const Duration _buildTimeout = Duration(seconds: 60);
 
 /// True when a change of [file] must not restart the server: files in
 /// `build/` of the project, or in a hidden folder like `.dart_tool/`.
@@ -240,6 +340,15 @@ bool? buildRunnerBuildState(String line) {
     return false;
   }
   return null;
+}
+
+/// True when a `build_runner` stdout line is worth showing: not empty, not a
+/// progress line like `  0s dox_builder on 26 inputs: 26 skipped`, and not
+/// the start or end of a build.
+bool showBuildRunnerLine(String line) {
+  if (line.trim().isEmpty) return false;
+  if (RegExp(r'^\s*\d+(\.\d+)?m?s ').hasMatch(line)) return false;
+  return buildRunnerBuildState(line) == null;
 }
 
 /// Starts `bin/server.dart`. [ready] completes when the server prints
@@ -291,15 +400,21 @@ Future<Process> _startServer({
 }
 
 /// Runs `build_runner watch`. [onBuild] gets true when a build starts and
-/// false when it ends.
-Future<Process> watchBuilder({void Function(bool started)? onBuild}) async {
+/// false when it ends. [onOutput] runs for each stdout line.
+Future<Process> watchBuilder({
+  void Function(bool started)? onBuild,
+  void Function()? onOutput,
+}) async {
   var process = await Process.start('dart', ['run', 'build_runner', 'watch']);
   _track(process);
 
   process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen(
     (String line) {
+      onOutput?.call();
       bool? started = buildRunnerBuildState(line);
       if (started != null) onBuild?.call(started);
+      // errors and warnings of the build, without the progress lines
+      if (started == null && showBuildRunnerLine(line)) print(line);
     },
   );
 
