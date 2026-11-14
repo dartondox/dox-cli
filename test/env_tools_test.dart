@@ -154,6 +154,8 @@ APP_PORT=3000
 
     test('more secret words give no default', () {
       List<String> keys = <String>[
+        'ADMIN_PW',
+        'DB_PWD',
         'VERIFY_CODE',
         'ADMIN_CODE',
         'CARD_CVV',
@@ -252,12 +254,59 @@ APP_PORT=3000
       expect(out, isNot(contains('Note:')));
     });
 
-    test('a \${ in a comment line gives no note', () async {
+    // the note shows only when a value really changes with envExpand,
+    // the same way dox_core reads it
+    Map<String, bool> noteCases = <String, bool>{
+      'A=\${HOST}': true,
+      'A="x \${HOST}"': true,
+      r'A="a\nb"': true, // an escape in "..." changes too
+      'A=x # see \${HOST}': false, // a comment after the value
+      "A='\${HOST}'": false, // single quotes stay raw
+      'A=`\${HOST}`': false, // backticks stay raw
+      'A=\${NOT_SET_ANYWHERE_X}': false, // an unknown name stays as it is
+      '# A=\${HOST}': false, // a comment line
+    };
+    for (MapEntry<String, bool> c in noteCases.entries) {
+      test('note for ${c.key}: ${c.value}', () async {
+        ProcessResult r = await envCheckIn(
+          'HOST=h\nAPP_KEY=k\nAPP_PORT=3000\n${c.key}\n',
+        );
+        expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
+        expect('${r.stdout}', contains('The env is valid.'));
+        expect(
+          '${r.stdout}',
+          c.value ? contains('Note:') : isNot(contains('Note:')),
+        );
+      });
+    }
+
+    test('note for .env.testing only when APP_ENV=testing', () async {
+      for (String appEnv in <String>['', 'testing']) {
+        ProcessResult r = await envCheckIn(
+          'HOST=h\nAPP_KEY=k\nAPP_PORT=3000\n',
+          testing: 'B=\${HOST}\n',
+          appEnv: appEnv,
+        );
+        expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
+        expect(
+          '${r.stdout}',
+          appEnv == 'testing' ? contains('Note:') : isNot(contains('Note:')),
+          reason: 'APP_ENV=$appEnv',
+        );
+      }
+    });
+
+    test('no env.g.dart: one plain line, exit 1', () async {
       ProcessResult r = await envCheckIn(
-        '# APP_URL=\${HOST}\nAPP_KEY=k\nAPP_PORT=3000\n',
+        'APP_KEY=k\nAPP_PORT=3000\n',
+        generated: false,
       );
-      expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
-      expect('${r.stdout}', isNot(contains('Note:')));
+      expect(r.exitCode, 1, reason: '${r.stdout}${r.stderr}');
+      expect(
+        '${r.stdout}',
+        contains('Run `dart run build_runner build` first.'),
+      );
+      expect('${r.stdout}${r.stderr}', isNot(contains('Error:')));
     });
 
     test('--expand with a missing key lists only the real errors', () async {
@@ -276,25 +325,11 @@ APP_PORT=3000
       expect('${r.stdout}', contains('Unknown option --foo'));
     });
   });
-
-  test('envHasVariable reads .env.testing only with APP_ENV=testing', () {
-    Directory temp = Directory.systemTemp.createTempSync('dox_env_var_');
-    try {
-      File('${temp.path}/.env').writeAsStringSync('A=1\n');
-      File('${temp.path}/.env.testing').writeAsStringSync('B=\${A}\n');
-      expect(envHasVariable(temp.path, <String, String>{}), isFalse);
-      expect(
-        envHasVariable(temp.path, <String, String>{'APP_ENV': 'testing'}),
-        isTrue,
-      );
-    } finally {
-      temp.deleteSync(recursive: true);
-    }
-  });
 }
 
-/// A small stand-in for dox_core: `.env` with `${X}` only when
-/// `Env.flags.envExpand` is on. `dox env:check` runs against it.
+/// A small stand-in for dox_core. `Env.parse` and its helpers are copied
+/// from dox_core 3.2.0 (lib/env/env.dart), so `.env` is read the same way.
+/// `dox env:check` runs against it.
 const String fakeCore = r'''
 import 'dart:io';
 
@@ -318,21 +353,103 @@ class Env {
   Map<String, String> env = <String, String>{};
   bool expanded = false;
 
+  static bool get isTesting => Platform.environment['APP_ENV'] == 'testing';
+
   void load() {
     if (env.isNotEmpty) return;
     expanded = flags.envExpand;
-    for (String line in File('.env').readAsLinesSync()) {
-      int eq = line.indexOf('=');
-      if (eq < 1) continue;
-      String value = line.substring(eq + 1);
-      if (flags.envExpand) {
-        value = value.replaceAllMapped(
-          RegExp(r'\$\{(\w+)\}'),
-          (Match m) => env[m[1]] ?? m[0]!,
-        );
-      }
-      env[line.substring(0, eq)] = value;
+    env = parse(File('.env').readAsStringSync(), expand: flags.envExpand);
+  }
+
+  /// Reads the text of a `.env` file.
+  /// - `KEY=value`, one per line. Lines that start with `#` are comments.
+  ///   `export KEY=value` is read like `KEY=value`.
+  /// - `KEY=value # note`: a `#` after a space starts a comment.
+  /// - `KEY="a # b"`: quotes (`"`, `'` or `` ` ``) keep the value as it is,
+  ///   also a `#`. The quotes are removed.
+  /// - `KEY=abc#def` stays `abc#def` (no space before the `#`).
+  ///
+  /// With [expand] (`CoreFlags.envExpand`):
+  /// - `${OTHER}` is the value of `OTHER`, in an unquoted or a `"` value.
+  ///   A real environment variable wins, then a key above this line (or
+  ///   in [known]). An unknown name stays as it is: `${OTHER}`.
+  /// - In a `"` value, `\n`, `\t`, `\"`, `\\` and `\$` become a new line,
+  ///   a tab, `"`, `\` and `$`. A `'` or `` ` `` value stays raw.
+  static Map<String, String> parse(
+    String contents, {
+    Map<String, String> known = const <String, String>{},
+    bool expand = false,
+  }) {
+    Map<String, String> data = <String, String>{};
+    String? lookup(String name) =>
+        Platform.environment[name] ?? data[name] ?? known[name];
+    for (String line in contents.split('\n')) {
+      String text = line.trim();
+      if (text.isEmpty || text.startsWith('#')) continue;
+      text = text.replaceFirst(_export, '');
+      int equal = text.indexOf('=');
+      if (equal < 1) continue;
+      data[text.substring(0, equal).trim()] = _value(
+        text.substring(equal + 1),
+        expand ? lookup : null,
+      );
     }
+    return data;
+  }
+
+  static final RegExp _comment = RegExp(r'(^|\s)#');
+
+  static final RegExp _export = RegExp(r'^export\s+');
+
+  static final RegExp _variable = RegExp(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}');
+
+  /// [lookup] is null when `envExpand` is off: the value is read as it
+  /// is written.
+  static String _value(String raw, String? Function(String)? lookup) {
+    String value = raw.trim();
+    if (lookup != null && value.startsWith('"')) {
+      String? text = _doubleQuoted(value, lookup);
+      if (text != null) return text;
+    } else if (value.isNotEmpty && '"\'`'.contains(value[0])) {
+      int end = value.indexOf(value[0], 1);
+      if (end > 0) return value.substring(1, end);
+    }
+    Match? comment = _comment.firstMatch(value);
+    if (comment != null) value = value.substring(0, comment.start);
+    value = value.trim();
+    if (lookup == null) return value;
+    return value.replaceAllMapped(
+      _variable,
+      (Match match) => lookup(match[1]!) ?? match[0]!,
+    );
+  }
+
+  /// the text inside the `"` quotes at the start of [value], with escapes
+  /// and `${NAME}` done. null when the closing quote is missing.
+  static String? _doubleQuoted(String value, String? Function(String) lookup) {
+    StringBuffer out = StringBuffer();
+    for (int i = 1; i < value.length; i++) {
+      String char = value[i];
+      if (char == '"') return out.toString();
+      if (char == r'\' && i + 1 < value.length) {
+        String next = value[++i];
+        out.write(switch (next) {
+          'n' => '\n',
+          't' => '\t',
+          '"' || r'\' || r'$' => next,
+          _ => '\\$next',
+        });
+        continue;
+      }
+      Match? match = char == r'$' ? _variable.matchAsPrefix(value, i) : null;
+      if (match != null) {
+        out.write(lookup(match[1]!) ?? match[0]);
+        i = match.end - 1;
+        continue;
+      }
+      out.write(char);
+    }
+    return null;
   }
 }
 ''';
@@ -340,6 +457,8 @@ class Env {
 /// the app's `lib/config/env.dart`: APP_KEY is needed, APP_PORT is an int
 const String fakeAppEnv = r'''
 import 'package:dox_core/dox_core.dart';
+
+part 'env.g.dart';
 
 class AppEnv {
   final int appPort;
@@ -364,6 +483,9 @@ final AppEnv env = AppEnv.load();
 Future<ProcessResult> envCheckIn(
   String envFile, {
   List<String> args = const <String>[],
+  String? testing,
+  String appEnv = '',
+  bool generated = true,
 }) async {
   String cli = Directory.current.path;
   Directory temp = Directory.systemTemp.createTempSync('dox_env_check_');
@@ -385,6 +507,12 @@ Future<ProcessResult> envCheckIn(
       ..createSync(recursive: true)
       ..writeAsStringSync(fakeAppEnv);
     File('$app/.env').writeAsStringSync(envFile);
+    if (testing != null) File('$app/.env.testing').writeAsStringSync(testing);
+    if (generated) {
+      // the real app has it from build_runner; the fake class needs none
+      File('$app/lib/config/env.g.dart')
+          .writeAsStringSync("part of 'env.dart';\n");
+    }
     String dart = Platform.resolvedExecutable;
     ProcessResult get = await Process.run(dart, <String>[
       'pub',
@@ -401,7 +529,7 @@ Future<ProcessResult> envCheckIn(
         ...args,
       ],
       workingDirectory: app,
-      environment: <String, String>{'APP_ENV': ''},
+      environment: <String, String>{'APP_ENV': appEnv},
     );
   } finally {
     temp.deleteSync(recursive: true);

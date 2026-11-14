@@ -109,7 +109,7 @@ final AppEnv env = AppEnv.load();
 /// Words that mark a secret: `DB_PASSWORD`, `APIKEY`, `PIN`.
 const List<String> _secretWords = <String>[
   'PASS', // PASSWORD, PASSWD, PASSCODE, PASSPHRASE
-  'PWD',
+  'PW', // PWD too
   'SECRET',
   'KEY',
   'TOKEN',
@@ -303,6 +303,11 @@ bool envGenerate() {
 /// `AppEnv.load()` gives under those flags. `envExpand` is the only flag
 /// that changes how dox_core reads `.env`. The script prints no env
 /// value itself.
+///
+/// With [expand] off, it prints a note when a value of `.env` (and of
+/// `.env.testing` in tests) would change with `envExpand` on. It asks
+/// `Env.parse` of dox_core both ways, so the note follows the real rules
+/// (no change in `'...'`, after ` #`, or for an unknown `${NAME}`).
 String envCheckScript(String package, {required bool expand}) {
   return '''
 import 'dart:io';
@@ -310,7 +315,40 @@ import 'dart:io';
 import 'package:$package/config/env.dart';
 import 'package:dox_core/dox_core.dart';
 
+/// true when [a] and [b] have the same keys and values
+bool same(Map<String, String> a, Map<String, String> b) {
+  if (a.length != b.length) return false;
+  for (String key in a.keys) {
+    if (a[key] != b[key]) return false;
+  }
+  return true;
+}
+
+/// true when a value of .env (or .env.testing in tests) changes with
+/// envExpand on
+bool expandChanges() {
+  File file = File('.env');
+  String text = file.existsSync() ? file.readAsStringSync() : '';
+  Map<String, String> plain = Env.parse(text);
+  Map<String, String> expanded = Env.parse(text, expand: true);
+  if (!same(plain, expanded)) return true;
+  File testing = File('.env.testing');
+  if (!Env.isTesting || !testing.existsSync()) return false;
+  text = testing.readAsStringSync();
+  return !same(
+    Env.parse(text, known: plain),
+    Env.parse(text, known: expanded, expand: true),
+  );
+}
+
 void main() {
+  if (!$expand && expandChanges()) {
+    print(
+      'Note: some .env values change with envExpand on. If the app turns '
+      'on envExpand (it sets Env.flags at the top of main()), run '
+      '`dox env:check --expand`.',
+    );
+  }
   Env.flags = const CoreFlags(envExpand: $expand);
   try {
     AppEnv.load();
@@ -321,27 +359,6 @@ void main() {
   }
 }
 ''';
-}
-
-/// True when a value in a `.env` file the check reads has `${`.
-/// `.env.testing` is read too when `APP_ENV=testing` is set, like
-/// dox_core does.
-bool envHasVariable(String root, Map<String, String> environment) {
-  List<String> files = <String>['$root/.env'];
-  if (environment['APP_ENV'] == 'testing') files.add('$root/.env.testing');
-  for (String path in files) {
-    File file = File(path);
-    if (!file.existsSync()) continue;
-    for (String line in file.readAsLinesSync()) {
-      String text = line.trim();
-      if (text.startsWith('#')) continue;
-      int equal = text.indexOf('=');
-      if (equal > 0 && text.substring(equal + 1).contains(r'${')) {
-        return true;
-      }
-    }
-  }
-  return false;
 }
 
 /// `dox env:check [--expand]`: loads `AppEnv` from `lib/config/env.dart`
@@ -376,14 +393,17 @@ Future<void> envCheck([List<String> args = const <String>[]]) async {
     exitCode = 1;
     return;
   }
-  print('Checked with envExpand ${expand ? 'on' : 'off'}.');
-  if (!expand && envHasVariable(root, Platform.environment)) {
+  String env = File('$root/lib/config/env.dart').readAsStringSync();
+  if (RegExp(r'''part\s+['"]env\.g\.dart['"]''').hasMatch(env) &&
+      !File('$root/lib/config/env.g.dart').existsSync()) {
     print(
-      r'Note: .env has ${...} values. If the app turns on envExpand '
-      '(it sets Env.flags at the top of main()), run '
-      '`dox env:check --expand`.',
+      'The env class is not generated yet. '
+      'Run `dart run build_runner build` first.',
     );
+    exitCode = 1;
+    return;
   }
+  print('Checked with envExpand ${expand ? 'on' : 'off'}.');
   File script = File('$root/.dart_tool/dox/env_check.dart');
   script.createSync(recursive: true);
   script.writeAsStringSync(envCheckScript(name.group(1)!, expand: expand));
