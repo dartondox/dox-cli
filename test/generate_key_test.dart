@@ -65,6 +65,37 @@ void main() {
     expect(env.readAsStringSync(), 'APP_KEY=new\nA=b=c\n# note\n');
   });
 
+  test('overrideKey replaces an `export APP_KEY` line in place', () {
+    env.writeAsStringSync('A=1\nexport APP_KEY=old\n  APP_KEY = old2 \n');
+    overrideKey('new', env.path);
+    // every APP_KEY line has the new key, so no old key can win
+    expect(env.readAsStringSync(), 'A=1\nexport APP_KEY=new\nAPP_KEY=new\n');
+  });
+
+  test('overrideKey does not touch a commented APP_KEY', () {
+    env.writeAsStringSync('# APP_KEY=old\nAPP_KEYS=x\n');
+    overrideKey('new', env.path);
+    expect(env.readAsStringSync(), 'APP_KEY=new\n# APP_KEY=old\nAPP_KEYS=x\n');
+  });
+
+  test('overrideKey keeps a tab after `export`', () {
+    env.writeAsStringSync('export\tAPP_KEY=old\n');
+    overrideKey('new', env.path);
+    expect(env.readAsStringSync(), 'export\tAPP_KEY=new\n');
+  });
+
+  test('overrideKey keeps CRLF line ends', () {
+    env.writeAsStringSync('APP_KEY=old\r\nA=1\r\n');
+    overrideKey('new', env.path);
+    expect(env.readAsStringSync(), 'APP_KEY=new\r\nA=1\r\n');
+  });
+
+  test('overrideKey adds APP_KEY with a CRLF end in a CRLF file', () {
+    env.writeAsStringSync('A=1\r\nB=2\r\n');
+    overrideKey('new', env.path);
+    expect(env.readAsStringSync(), 'APP_KEY=new\r\nA=1\r\nB=2\r\n');
+  });
+
   group('generateKey', () {
     const Map<String, String> prod = <String, String>{'APP_ENV': 'production'};
 
