@@ -22,6 +22,33 @@ void main() {
     },
   );
 
+  test('dox serve ignores changes in build/ and hidden folders', () {
+    String root = '/app';
+    expect(isIgnoredWatchPath('/app/.dart_tool/build/x.dart', root), isTrue);
+    expect(isIgnoredWatchPath('/app/build/bundle/a.dart', root), isTrue);
+    expect(isIgnoredWatchPath('/app/lib/.cache/a.dart', root), isTrue);
+    expect(isIgnoredWatchPath('/app/lib/app/user.model.dart', root), isFalse);
+    expect(isIgnoredWatchPath('/app/lib/build/a.dart', root), isFalse);
+    expect(isIgnoredWatchPath('/app/bin/server.dart', root), isFalse);
+  });
+
+  test('dox serve reads the start and end of a build_runner build', () {
+    expect(buildRunnerBuildState('Starting build #2.'), isTrue);
+    expect(
+      buildRunnerBuildState(
+        'Built with build_runner/jit in 1s; wrote 2 outputs.',
+      ),
+      isFalse,
+    );
+    expect(
+      buildRunnerBuildState(
+        'Failed to build with build_runner/jit in 1s; wrote 0 outputs.',
+      ),
+      isFalse,
+    );
+    expect(buildRunnerBuildState('json_serializable on lib/a.dart'), isNull);
+  });
+
   test('the serve option warning shows the port that was typed', () {
     expect(serveOptionWarning('--port=3000'), contains('APP_PORT=3000 dox'));
     expect(serveOptionWarning('3000'), contains('APP_PORT=8080 dox'));

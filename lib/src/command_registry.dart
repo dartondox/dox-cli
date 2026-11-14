@@ -176,12 +176,9 @@ class CommandRegistry {
         if (args.isNotEmpty && args[0] != '--ignore-build-runner') {
           print(serveOptionWarning(args[0]));
         }
-        if (args.isNotEmpty && args[0] == '--ignore-build-runner') {
-          serverServe();
-        } else {
-          watchBuilder();
-          serverServe();
-        }
+        serverServe(
+          withBuilder: args.isEmpty || args[0] != '--ignore-build-runner',
+        );
       },
     ),
 

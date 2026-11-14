@@ -1,3 +1,7 @@
+## Unreleased
+
+- Faster `dox serve` (`dox s`) restarts. The server now runs with `dart run --resident`, so a restart only compiles the changed files. The resident compiler uses an info file in `.dart_tool/dox/`, and dox stops it when dox exits. Changes in `build/` and in hidden folders like `.dart_tool/` no longer restart the server. The wait after a change is now 200 ms (was 500 ms). With build_runner, one save gives one restart: dox waits until build_runner has written the new generated files. Before, the server restarted on the save and again for each generated file. The server now starts first, and `build_runner watch` starts when the server says "Server started at" (or after 10 seconds). Before, both started at the same time and slowed down each other. When the first build writes new files, the server restarts once after it.
+
 ## 3.2.0
 
 - New: `dox add <package>` adds a Dox package and sets it up. `orm` is short for `dox_orm`. It runs `dart pub add` (with `--dev` when given), `dart pub get`, then the `<package>:install` command of the package. The other words go to that command, like `dox add orm --driver=postgres`. A package with no install command is only added, and `dox add` says so. When the package commands can not be loaded (a broken commands library), it prints an error and exits with code 1. The name is the first word that is not a flag, so `dox add --dev orm` works. The CLI has no code of any package.
