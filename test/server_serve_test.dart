@@ -124,6 +124,23 @@ void main() {
     );
   });
 
+  test('dox serve shows one link: the VM service, not DevTools', () {
+    expect(
+      isHiddenServerLine(
+        'The Dart DevTools debugger and profiler is available at: '
+        'http://127.0.0.1:55614/RD0K=/devtools/?uri=ws://127.0.0.1:55614/RD0K=/ws',
+      ),
+      isTrue,
+    );
+    expect(
+      isHiddenServerLine(
+        'The Dart VM service is listening on http://127.0.0.1:55614/RD0K=/',
+      ),
+      isFalse,
+    );
+    expect(isHiddenServerLine('Server started at http://[::]:3000'), isFalse);
+  });
+
   test('dox serve reads the VM service address', () {
     expect(
       vmServiceUri(
