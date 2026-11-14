@@ -49,7 +49,7 @@ dox s                        # dev server, hot reloads or restarts when a file c
 | `dox make:factory <model>` / `dox make:seeder <name>` | create a model factory or a seeder |
 | `dox db:seed [--class=<name>]` | run the seeders |
 | `dox key:generate` | make a new `APP_KEY` (`--show` prints one and writes nothing; in production it asks first, `--force` skips the question) |
-| `dox env:generate` / `dox env:check` | make or check the typed env class |
+| `dox env:generate` / `dox env:check` | make or check the typed env class. `env:generate` reads `.env.example`, which is in git: never put a real secret there, and read the made class before you commit it. `env:check` checks with `envExpand` off; `env:check --expand` checks with it on |
 | `dox openapi:generate [dir]` | write `openapi.json` and `openapi.yaml` |
 | `dox route:list [--json]` | list every route of the app, without starting the server |
 

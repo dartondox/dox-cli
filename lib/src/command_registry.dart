@@ -374,7 +374,9 @@ class CommandRegistry {
       command: 'env:generate',
       helpInfo: 'env:generate',
       description:
-          'Make lib/config/env.dart (typed env class) from .env.example',
+          'Make lib/config/env.dart (typed env class) from .env.example. '
+          '.env.example is in git: never put a real secret in it, and read '
+          'the made class before you commit it',
       category: CommandCategory.generation,
       function: (args) async {
         envGenerate();
@@ -383,11 +385,11 @@ class CommandRegistry {
 
     CommandDefinition(
       command: 'env:check',
-      helpInfo: 'env:check',
-      description: 'Check the env against lib/config/env.dart and print missing or bad keys',
+      helpInfo: 'env:check [--expand]',
+      description: 'Check the env against lib/config/env.dart and print missing or bad keys (--expand: with envExpand on)',
       category: CommandCategory.system,
       function: (args) async {
-        await envCheck();
+        await envCheck(args);
       },
     ),
 

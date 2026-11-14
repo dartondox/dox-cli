@@ -49,7 +49,7 @@ class EnvScaffold {
       // the name must give the key under the old and the new rule of
       // dox_builder, else the key is written out
       if (upperSnake(name) != key || acronymUpperSnake(name) != key) {
-        getters.writeln("  @EnvKey('$key')");
+        getters.writeln('  @EnvKey(${dartString(key)})');
       }
       getters.writeln('  ${_getter(name, value, secretKey(key))}');
     }
@@ -122,7 +122,16 @@ const List<String> _secretWords = <String>[
   'OTP',
   'PIN',
   'CERT',
-  'SIGNATURE',
+  'SIGN', // SIGNATURE, SIGNING
+  'CODE', // VERIFY_CODE, ADMIN_CODE
+  'CVV',
+  'CVC',
+  'HMAC',
+  'SEED',
+  'NONCE',
+  'SSN',
+  'HASH',
+  'LICENSE',
 ];
 
 /// True when [key] holds a word that marks a secret, anywhere in it. Its
@@ -207,6 +216,15 @@ String getterName(String key) {
   return name;
 }
 
+/// [text] as a Dart string literal: `A'B` => `'A\'B'`, `A$B` => `'A\$B'`.
+String dartString(String text) {
+  String escaped = text
+      .replaceAll(r'\', r'\\')
+      .replaceAll("'", r"\'")
+      .replaceAll(r'$', r'\$');
+  return "'$escaped'";
+}
+
 /// `APP_NAME` => `appName`
 String camelCase(String key) {
   List<String> words = key.toLowerCase().split('_');
@@ -278,162 +296,71 @@ bool envGenerate() {
   return true;
 }
 
-/// What `bin/server.dart` does with `Env.flags`, read from its text.
+/// The script that `dox env:check` runs in the app of package [package].
 ///
-/// The real app reads `.env` once, with the `Env.flags` of that moment.
-/// Only `main()` sets `Env.flags`. dox_core never takes it from
-/// `AppConfig`, it only warns at start when they differ. So the check
-/// reads `main()` and does the same.
-///
-/// What it can see: an `Env.flags = <value>;` line in `main()`, and if
-/// code that can read the env (`appConfig`, `env.`, `Env`, `AppEnv`,
-/// `Dox()`) comes before it. What it can not see: code in other files
-/// that `main()` calls, and a value that is not a plain name or a
-/// `CoreFlags(...)` call. For such a value it uses the config flags.
-class ServerFlags {
-  /// the value given to `Env.flags`, or null when main() does not set it
-  /// in time
-  final String? value;
-
-  /// `Env.flags` is set, but after code that can read the env
-  final bool late;
-
-  /// `Env.flags` is set to a value that is not plain enough to copy
-  final bool unknown;
-
-  /// the imports of `bin/server.dart`, with relative paths made absolute
-  final List<String> imports;
-
-  const ServerFlags({
-    this.value,
-    this.late = false,
-    this.unknown = false,
-    this.imports = const <String>[],
-  });
-
-  static final RegExp _main = RegExp(r'\bmain\s*\(');
-
-  static final RegExp _set = RegExp(r'\bEnv\.flags\s*=\s*([^;]+);');
-
-  static final RegExp _readsEnv = RegExp(
-    r'\b(appConfig|env\.|Env\.get|Env\(\)|AppEnv|Dox\(\))',
-  );
-
-  static final RegExp _plain = RegExp(
-    r'^(const\s+)?[A-Za-z_$][\w$.]*(\([^;()?]*\))?$',
-  );
-
-  static final RegExp _import = RegExp(
-    r'''^import\s+['"]([^'"]+)['"]([^;]*);''',
-    multiLine: true,
-  );
-
-  /// reads `bin/server.dart` of the app [root]
-  static ServerFlags read(String root) {
-    File file = File('$root/bin/server.dart');
-    if (!file.existsSync()) return const ServerFlags();
-    String code = file.readAsStringSync().replaceAll(RegExp(r'//[^\n]*'), '');
-    Match? main = _main.firstMatch(code);
-    if (main == null) return const ServerFlags();
-    String body = code.substring(main.end);
-    Match? set = _set.firstMatch(body);
-    if (set == null) return const ServerFlags();
-    if (_readsEnv.hasMatch(body.substring(0, set.start))) {
-      return const ServerFlags(late: true);
-    }
-    String value = set[1]!.trim();
-    if (!_plain.hasMatch(value)) return const ServerFlags(unknown: true);
-    List<String> imports = <String>[];
-    Uri bin = Directory('$root/bin').uri;
-    for (Match line in _import.allMatches(code)) {
-      String uri = line[1]!;
-      if (!uri.startsWith('package:') && !uri.startsWith('dart:')) {
-        uri = bin.resolve(uri).toString();
-      }
-      imports.add("import '$uri'${line[2]};");
-    }
-    return ServerFlags(value: value, imports: imports);
-  }
-}
-
-/// The script that `dox env:check` runs in the app [root] of package
-/// [package].
-///
-/// It sets `Env.flags` like `main()` of `bin/server.dart` does
-/// ([ServerFlags]) and then loads `AppEnv`. So it lists the errors that
-/// the real app has at start, no more. When the config turns on
-/// `envExpand` but `.env` was read without it, it says so and fails:
-/// Dox only warns, but the `${...}` values are then wrong.
-String envCheckScript(String package, String root) {
-  File config = File('$root/lib/config/app.dart');
-  String configText = config.existsSync() ? config.readAsStringSync() : '';
-  bool hasConfig = RegExp(r'\bappConfig\s*=').hasMatch(configText);
-  // a guess from the text, for when appConfig can not be built
-  bool configExpand = RegExp(r'envExpand\s*:\s*true|CoreFlags\.all\(')
-      .hasMatch(configText);
-  ServerFlags server = ServerFlags.read(root);
-
-  StringBuffer imports = StringBuffer();
-  for (String line in server.imports) {
-    imports.writeln(line);
-  }
-  if (hasConfig) imports.writeln("import 'package:$package/config/app.dart';");
-
-  String setFlags = '';
-  String why = 'bin/server.dart sets Env.flags with envExpand off.';
-  if (server.value != null) {
-    setFlags = 'Env.flags = ${server.value};';
-  } else if (server.unknown) {
-    setFlags = 'Env.flags = const CoreFlags(envExpand: $configExpand);';
-  } else if (server.late) {
-    why = 'bin/server.dart sets Env.flags after the env is read.';
-  } else {
-    why = 'bin/server.dart does not set Env.flags.';
-  }
-  String mismatch =
-      'lib/config/app.dart turns on CoreFlags.envExpand, but the app reads '
-      r'.env without it, so ${...} values are not replaced. '
-      '$why Fix: make `Env.flags = flags;` the first line of main() in '
-      'bin/server.dart, with the same flags as AppConfig.';
-  String readConfig = hasConfig
-      ? '''
-
-  if (valid) {
-    try {
-      configExpand = appConfig.flags.envExpand;
-    } catch (_) {}
-  }'''
-      : '';
-
-  return """
+/// It sets `Env.flags` to the mode of the check ([expand] is
+/// `envExpand`), then loads `AppEnv`. So the result is what
+/// `AppEnv.load()` gives under those flags. `envExpand` is the only flag
+/// that changes how dox_core reads `.env`. The script prints no env
+/// value itself.
+String envCheckScript(String package, {required bool expand}) {
+  return '''
 import 'dart:io';
 
-${imports}import 'package:$package/config/env.dart';
+import 'package:$package/config/env.dart';
 import 'package:dox_core/dox_core.dart';
 
 void main() {
-  bool valid = false;
+  Env.flags = const CoreFlags(envExpand: $expand);
   try {
-    $setFlags
     AppEnv.load();
-    valid = true;
+    print('The env is valid.');
   } on EnvException catch (e) {
     print(e);
     exitCode = 1;
   }
-  bool configExpand = $configExpand;$readConfig
-  if (configExpand && !Env().expanded) {
-    print(r'''$mismatch''');
-    exitCode = 1;
-  }
-  if (exitCode == 0) print('The env is valid.');
 }
-""";
+''';
 }
 
-/// `dox env:check`: loads `AppEnv` from `lib/config/env.dart` with the
-/// current env and `.env`. Prints every missing or bad key (exit code 1).
-Future<void> envCheck() async {
+/// True when a value in a `.env` file the check reads has `${`.
+/// `.env.testing` is read too when `APP_ENV=testing` is set, like
+/// dox_core does.
+bool envHasVariable(String root, Map<String, String> environment) {
+  List<String> files = <String>['$root/.env'];
+  if (environment['APP_ENV'] == 'testing') files.add('$root/.env.testing');
+  for (String path in files) {
+    File file = File(path);
+    if (!file.existsSync()) continue;
+    for (String line in file.readAsLinesSync()) {
+      String text = line.trim();
+      if (text.startsWith('#')) continue;
+      int equal = text.indexOf('=');
+      if (equal > 0 && text.substring(equal + 1).contains(r'${')) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/// `dox env:check [--expand]`: loads `AppEnv` from `lib/config/env.dart`
+/// with the current env and `.env`. Prints every missing or bad key
+/// (exit code 1).
+///
+/// It checks with the default flags, like an app that sets no
+/// `Env.flags`. `--expand` checks with `envExpand` on. It does not read
+/// the app code to find the flags: that can not be done right without
+/// running `main()`. It always says which mode it used.
+Future<void> envCheck([List<String> args = const <String>[]]) async {
+  for (String arg in args) {
+    if (arg != '--expand') {
+      print('Unknown option $arg. Use `dox env:check [--expand]`.');
+      exitCode = 1;
+      return;
+    }
+  }
+  bool expand = args.contains('--expand');
   String root = Directory.current.path;
   if (!File('$root/lib/config/env.dart').existsSync()) {
     print('lib/config/env.dart is missing. Run `dox env:generate` first.');
@@ -449,15 +376,17 @@ Future<void> envCheck() async {
     exitCode = 1;
     return;
   }
-  if (ServerFlags.read(root).unknown) {
+  print('Checked with envExpand ${expand ? 'on' : 'off'}.');
+  if (!expand && envHasVariable(root, Platform.environment)) {
     print(
-      'Note: bin/server.dart sets Env.flags to a value env:check can not '
-      'read. The check uses envExpand from lib/config/app.dart.',
+      r'Note: .env has ${...} values. If the app turns on envExpand '
+      '(it sets Env.flags at the top of main()), run '
+      '`dox env:check --expand`.',
     );
   }
   File script = File('$root/.dart_tool/dox/env_check.dart');
   script.createSync(recursive: true);
-  script.writeAsStringSync(envCheckScript(name.group(1)!, root));
+  script.writeAsStringSync(envCheckScript(name.group(1)!, expand: expand));
   String exe = Platform.resolvedExecutable;
   String dart = exe.split(Platform.pathSeparator).last.startsWith('dart')
       ? exe
