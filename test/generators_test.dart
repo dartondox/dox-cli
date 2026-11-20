@@ -644,6 +644,54 @@ void main() {
       expect(formatted(), isTrue);
     });
 
+    test('registry skips an abstract migration class', () {
+      Directory('db/migration').createSync(recursive: true);
+      File('db/migration/2026_01_01_000000_a.dart').writeAsStringSync(
+        'abstract class BaseMigration extends Migration {}\n'
+        'class CreateA extends Migration {}',
+      );
+      File('db/migration/2026_01_01_000001_b.dart')
+          .writeAsStringSync('sealed class OnlyBase extends Migration {}');
+      writeMigrationRegistry();
+      String registry = read('db/migration/migrations.dart');
+      expect(registry, contains('CreateA()'));
+      expect(registry, isNot(contains('BaseMigration')));
+      expect(registry, isNot(contains('OnlyBase')));
+    });
+
+    test('registry finds subclasses of an abstract migration', () {
+      Directory('db/migration').createSync(recursive: true);
+      File('db/migration/2026_01_01_000000_a.dart').writeAsStringSync(
+        'abstract class BaseMigration extends Migration {}\n'
+        'abstract class MidMigration extends BaseMigration {}',
+      );
+      File('db/migration/2026_01_01_000001_b.dart')
+          .writeAsStringSync('class CreateB extends BaseMigration {}');
+      File('db/migration/2026_01_01_000002_c.dart')
+          .writeAsStringSync('@sealed class CreateC extends MidMigration {}');
+      writeMigrationRegistry();
+      String registry = read('db/migration/migrations.dart');
+      expect(registry, contains('CreateB()'));
+      expect(registry, contains('CreateC()'));
+      expect(registry, isNot(contains('BaseMigration')));
+      expect(registry, isNot(contains('MidMigration')));
+      expect(registry, isNot(contains('_a.dart')));
+    });
+
+    test('registry reads a base migration in an untimestamped file', () {
+      Directory('db/migration').createSync(recursive: true);
+      File(
+        'db/migration/base_migration.dart',
+      ).writeAsStringSync('abstract class BaseMigration extends Migration {}');
+      File('db/migration/2026_01_01_000000_a.dart')
+          .writeAsStringSync('class CreateA extends BaseMigration {}');
+      writeMigrationRegistry();
+      String registry = read('db/migration/migrations.dart');
+      expect(registry, contains('CreateA()'));
+      expect(registry, isNot(contains('base_migration')));
+      expect(registry, isNot(contains('BaseMigration')));
+    });
+
     test('makes bin/migrate.dart once', () async {
       await run(<String>['create_a_table']);
       expect(
@@ -781,6 +829,95 @@ void main() {
       expect(registry, contains("import 'extra.dart';"));
       expect(registry, contains('<Seeder>[A(), B()];'));
       expect(registry, isNot(contains('C()')));
+    });
+
+    test('registry skips abstract and sealed seeder classes', () {
+      Directory('db/seeders').createSync(recursive: true);
+      File('db/seeders/base.dart').writeAsStringSync(
+        'abstract class BaseSeeder extends Seeder {}\n'
+        'abstract base class B2 extends Seeder {}\n'
+        'sealed class B3 extends Seeder {}\n'
+        'base class Real extends Seeder {}\n'
+        'final class Real2 extends Seeder {}',
+      );
+      File('db/seeders/only_abstract.dart')
+          .writeAsStringSync('abstract class Other extends Seeder {}');
+      writeSeederRegistry();
+      String registry = read('db/seeders/seeders.dart');
+      expect(registry, contains('<Seeder>[Real(), Real2()];'));
+      expect(registry, isNot(contains('BaseSeeder')));
+      expect(registry, isNot(contains('only_abstract')));
+    });
+
+    test('registry finds subclasses of an abstract seeder in other files', () {
+      Directory('db/seeders').createSync(recursive: true);
+      File('db/seeders/a_base.dart').writeAsStringSync(
+        'abstract class BaseSeeder extends Seeder {}\n'
+        'abstract class MidSeeder extends BaseSeeder {}',
+      );
+      File('db/seeders/b_user.dart')
+          .writeAsStringSync('class UserSeeder extends BaseSeeder {}');
+      File('db/seeders/c_post.dart').writeAsStringSync(
+        'class PostSeeder extends MidSeeder {}\nclass Other extends Unknown {}',
+      );
+      writeSeederRegistry();
+      String registry = read('db/seeders/seeders.dart');
+      expect(registry, contains('<Seeder>[UserSeeder(), PostSeeder()];'));
+      expect(registry, contains("import 'b_user.dart';"));
+      expect(registry, contains("import 'c_post.dart';"));
+      expect(registry, isNot(contains('a_base.dart')));
+      expect(registry, isNot(contains('Other')));
+    });
+
+    test('registry does not read annotations or comments as modifiers', () {
+      Directory('db/seeders').createSync(recursive: true);
+      File('db/seeders/m.dart').writeAsStringSync(
+        '@sealed class Real extends Seeder {}\n'
+        '/// not abstract\n'
+        'class B extends Seeder {}',
+      );
+      writeSeederRegistry();
+      expect(
+        read('db/seeders/seeders.dart'),
+        contains('<Seeder>[Real(), B()];'),
+      );
+    });
+
+    test('registry reads generic classes', () {
+      Directory('db/seeders').createSync(recursive: true);
+      File('db/seeders/g.dart').writeAsStringSync(
+        'abstract class Base<T> extends Seeder {}\n'
+        'class C extends Base<Map<String, int>> {}\n'
+        'class X<T extends Object> extends Seeder {}',
+      );
+      writeSeederRegistry();
+      expect(read('db/seeders/seeders.dart'), contains('<Seeder>[C(), X()];'));
+    });
+
+    test('registry ignores comments and strings', () {
+      Directory('db/seeders').createSync(recursive: true);
+      File('db/seeders/c.dart').writeAsStringSync(
+        '// class Old extends Seeder {}\n'
+        '/* class Old2 extends Seeder {} /* nested */ class Old3 extends Seeder {} */\n'
+        "const a = 'class S1 extends Seeder {}';\n"
+        'const b = r"class S2 extends Seeder {}";\n'
+        "const c = '''\nclass S3 extends Seeder {}\n''';\n"
+        "const d = 'it\\'s class S4 extends Seeder {}';\n"
+        'class Real extends Seeder {}',
+      );
+      writeSeederRegistry();
+      expect(read('db/seeders/seeders.dart'), contains('<Seeder>[Real()];'));
+    });
+
+    test('registry skips private seeders but uses them as parents', () {
+      Directory('db/seeders').createSync(recursive: true);
+      File('db/seeders/p.dart').writeAsStringSync(
+        'class _A extends Seeder {}\n'
+        'class _Base extends Seeder {}\n'
+        'class B extends _Base {}',
+      );
+      writeSeederRegistry();
+      expect(read('db/seeders/seeders.dart'), contains('<Seeder>[B()];'));
     });
 
     test('a long registry list has one seeder per line', () {

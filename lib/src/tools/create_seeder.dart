@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../utils/utils.dart';
+import 'class_scan.dart';
 
 /// folder of the seeders, `db/seeders`
 Directory seederDirectory() {
@@ -50,8 +51,6 @@ bool createSeeder(String name) {
   return true;
 }
 
-final RegExp _seederClass = RegExp(r'class\s+(\w+)\s+extends\s+Seeder\b');
-
 /// write `db/seeders/seeders.dart`: every seeder class of the folder.
 /// Dart can not find classes at run time (AOT), so the app imports this
 /// list.
@@ -72,15 +71,13 @@ void writeSeederRegistry() {
 
   StringBuffer imports = StringBuffer();
   List<String> entries = <String>[];
-  for (File file in files) {
-    Iterable<RegExpMatch> classes = _seederClass.allMatches(
-      file.readAsStringSync(),
-    );
-    if (classes.isEmpty) continue;
-    imports.writeln("import '${file.uri.pathSegments.last}';");
-    for (RegExpMatch match in classes) {
-      entries.add('${match.group(1)}()');
-    }
+  List<List<String>> classes = buildableSubclasses('Seeder', <String>[
+    for (File file in files) file.readAsStringSync(),
+  ]);
+  for (int i = 0; i < files.length; i++) {
+    if (classes[i].isEmpty) continue;
+    imports.writeln("import '${files[i].uri.pathSegments.last}';");
+    entries.addAll(classes[i].map((String name) => '$name()'));
   }
 
   /// same layout as `dart format`: one line when it fits in 80 chars

@@ -1,3 +1,7 @@
+## Unreleased
+
+- Fix: `seeders.dart` and `migrations.dart` listed an `abstract` or `sealed` class, like `abstract class BaseSeeder extends Seeder`, and called its constructor. The app did not compile. These classes are now skipped. A class that extends an abstract base class (`class UserSeeder extends BaseSeeder`), also in another file or through more than one level, is now found and listed. A file with only skipped classes is not imported. In a migration file, the first class that can be built is used. An annotation like `@sealed` or a comment word like `abstract` is not read as a modifier. The scan also reads generic classes (`class C extends Base<int>`), skips commented-out code and text in strings, skips private classes (`_Name`, but they can still be a parent), and, for migrations, reads a base class from any `.dart` file of `db/migration` (only timestamped files are registered).
+
 ## 3.2.2
 
 - Fix: `dox key:generate` did not see an `export APP_KEY=old` line. It added a new `APP_KEY` at the top, but the old line came later and won, so the app kept the old key. It still said the key was updated. Now it changes the `export APP_KEY` line in place and keeps the `export`. When `.env` has more than one `APP_KEY` line, each one gets the new key, so no old key is left to win. A new `APP_KEY` line in a file with Windows line ends (CRLF) now gets a CRLF end too.
