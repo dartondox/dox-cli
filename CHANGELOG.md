@@ -1,3 +1,7 @@
+## Unreleased
+
+- Fix: `seeders.dart` and `migrations.dart` listed an `abstract` or `sealed` class, like `abstract class BaseSeeder extends Seeder`, and called its constructor. The app did not compile. These classes are now skipped. A file with only such classes is not imported. In a migration file, the first class that can be built is used.
+
 ## 3.2.2
 
 - Fix: `dox key:generate` did not see an `export APP_KEY=old` line. It added a new `APP_KEY` at the top, but the old line came later and won, so the app kept the old key. It still said the key was updated. Now it changes the `export APP_KEY` line in place and keeps the `export`. When `.env` has more than one `APP_KEY` line, each one gets the new key, so no old key is left to win. A new `APP_KEY` line in a file with Windows line ends (CRLF) now gets a CRLF end too.
