@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../utils/utils.dart';
+import 'class_scan.dart';
 
 /// folder of the seeders, `db/seeders`
 Directory seederDirectory() {
@@ -50,11 +51,6 @@ bool createSeeder(String name) {
   return true;
 }
 
-// Group 1 is the modifiers before `class`, group 2 is the class name.
-final RegExp _seederClass = RegExp(
-  r'((?:(?:abstract|sealed|base|final|interface|mixin)\s+)*)class\s+(\w+)\s+extends\s+Seeder\b',
-);
-
 /// write `db/seeders/seeders.dart`: every seeder class of the folder.
 /// Dart can not find classes at run time (AOT), so the app imports this
 /// list.
@@ -75,19 +71,13 @@ void writeSeederRegistry() {
 
   StringBuffer imports = StringBuffer();
   List<String> entries = <String>[];
-  for (File file in files) {
-    Iterable<RegExpMatch> classes = _seederClass.allMatches(
-      file.readAsStringSync(),
-    );
-    List<String> found = <String>[
-      for (RegExpMatch match in classes)
-        // an abstract or sealed class has no constructor to call
-        if (!match.group(1)!.contains(RegExp(r'abstract|sealed')))
-          match.group(2)!,
-    ];
-    if (found.isEmpty) continue;
-    imports.writeln("import '${file.uri.pathSegments.last}';");
-    entries.addAll(found.map((String name) => '$name()'));
+  List<List<String>> classes = buildableSubclasses('Seeder', <String>[
+    for (File file in files) file.readAsStringSync(),
+  ]);
+  for (int i = 0; i < files.length; i++) {
+    if (classes[i].isEmpty) continue;
+    imports.writeln("import '${files[i].uri.pathSegments.last}';");
+    entries.addAll(classes[i].map((String name) => '$name()'));
   }
 
   /// same layout as `dart format`: one line when it fits in 80 chars

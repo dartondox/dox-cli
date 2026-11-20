@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Fix: `seeders.dart` and `migrations.dart` listed an `abstract` or `sealed` class, like `abstract class BaseSeeder extends Seeder`, and called its constructor. The app did not compile. These classes are now skipped. A file with only such classes is not imported. In a migration file, the first class that can be built is used.
+- Fix: `seeders.dart` and `migrations.dart` listed an `abstract` or `sealed` class, like `abstract class BaseSeeder extends Seeder`, and called its constructor. The app did not compile. These classes are now skipped. A class that extends an abstract base class (`class UserSeeder extends BaseSeeder`), also in another file or through more than one level, is now found and listed. A file with only skipped classes is not imported. In a migration file, the first class that can be built is used. An annotation like `@sealed` or a comment word like `abstract` is not read as a modifier.
 
 ## 3.2.2
 

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dox/src/utils/utils.dart';
+import 'package:dox/src/tools/class_scan.dart';
 
 /// folder of the migrations, `db/migration`
 Directory migrationDirectory() {
@@ -75,10 +76,6 @@ String _timestamp(DateTime now) {
 }
 
 final RegExp _migrationFile = RegExp(r'^\d{4}_\d{2}_\d{2}_\d+_\w+\.dart$');
-// Group 1 is the modifiers before `class`, group 2 is the class name.
-final RegExp _migrationClass = RegExp(
-  r'((?:(?:abstract|sealed|base|final|interface|mixin)\s+)*)class\s+(\w+)\s+extends\s+Migration\b',
-);
 
 /// true when `db/migration` has Dart migration files
 bool hasDartMigrations() {
@@ -106,17 +103,14 @@ void writeMigrationRegistry() {
   StringBuffer imports = StringBuffer();
   StringBuffer entries = StringBuffer();
   int i = 0;
+  List<List<String>> classes = buildableSubclasses('Migration', <String>[
+    for (File file in files) file.readAsStringSync(),
+  ]);
   for (File file in files) {
     String fileName = file.uri.pathSegments.last;
     String name = fileName.substring(0, fileName.length - '.dart'.length);
-    // an abstract or sealed class has no constructor to call
-    RegExpMatch? match = _migrationClass
-        .allMatches(file.readAsStringSync())
-        .where(
-          (RegExpMatch m) => !m.group(1)!.contains(RegExp(r'abstract|sealed')),
-        )
-        .firstOrNull;
-    if (match == null) {
+    String? className = classes[files.indexOf(file)].firstOrNull;
+    if (className == null) {
       print('\x1B[33mSkip $fileName: no class that extends Migration.\x1B[0m');
       continue;
     }
@@ -127,10 +121,9 @@ void writeMigrationRegistry() {
     String import = "import '$fileName' as m$i;";
     if (import.length > 80) import = "import '$fileName'\n    as m$i;";
     imports.writeln(import);
-    String entry = "  MigrationEntry('$name', m$i.${match.group(2)}()),";
+    String entry = "  MigrationEntry('$name', m$i.$className()),";
     if (entry.length > 80) {
-      entry =
-          "  MigrationEntry(\n    '$name',\n    m$i.${match.group(2)}(),\n  ),";
+      entry = "  MigrationEntry(\n    '$name',\n    m$i.$className(),\n  ),";
     }
     entries.writeln(entry);
   }
