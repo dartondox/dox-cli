@@ -103,13 +103,23 @@ void writeMigrationRegistry() {
   StringBuffer imports = StringBuffer();
   StringBuffer entries = StringBuffer();
   int i = 0;
+  // An abstract base class may be in any .dart file of the folder, not
+  // only in a timestamped one. Only the timestamped files are registered.
+  List<File> scanned = dir.existsSync()
+      ? (dir.listSync().whereType<File>().where((File f) {
+          String last = f.uri.pathSegments.last;
+          return last.endsWith('.dart') && last != 'migrations.dart';
+        }).toList()..sort((File a, File b) => a.path.compareTo(b.path)))
+      : <File>[];
   List<List<String>> classes = buildableSubclasses('Migration', <String>[
-    for (File file in files) file.readAsStringSync(),
+    for (File file in scanned) file.readAsStringSync(),
   ]);
   for (File file in files) {
     String fileName = file.uri.pathSegments.last;
     String name = fileName.substring(0, fileName.length - '.dart'.length);
-    String? className = classes[files.indexOf(file)].firstOrNull;
+    String? className =
+        classes[scanned.indexWhere((File f) => f.path == file.path)]
+            .firstOrNull;
     if (className == null) {
       print('\x1B[33mSkip $fileName: no class that extends Migration.\x1B[0m');
       continue;
