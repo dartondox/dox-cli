@@ -346,13 +346,14 @@ class CommandRegistry {
     CommandDefinition(
       command: 'make:serializer',
       aliases: ['create:serializer'],
-      helpInfo: 'make:serializer <serializer_name>',
-      description: 'Create a new serializer',
+      helpInfo: 'make:serializer <serializer_name> [--folder]',
+      description:
+          'Create a new serializer. --folder: in lib/app/serializers/<name>/',
       category: CommandCategory.generation,
       minArgs: 1,
-      maxArgs: 1,
+      maxArgs: 2,
       function: (args) async {
-        createSerializer(args[0]);
+        makeSerializer(args);
       },
     ),
 

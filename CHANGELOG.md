@@ -1,3 +1,8 @@
+## Unreleased
+
+- New: `dox make:serializer Post --folder` puts the file in `lib/app/serializers/post/`. Without `--folder`, the file goes in `lib/app/serializers/`, as before.
+- New: when the dox_annotation of the app has `@Serialize()`, `dox make:serializer` adds `@Serialize()` and the `part` line to the new file. Then the serializer writes its JSON with no `Map` in between. Run `dox build_runner:build` to make the `.g.dart` file. With an older dox_annotation, the file has no `@Serialize()`, so it compiles.
+
 ## 3.2.3
 
 - Fix: `seeders.dart` and `migrations.dart` listed an `abstract` or `sealed` class, like `abstract class BaseSeeder extends Seeder`, and called its constructor. The app did not compile. These classes are now skipped. A class that extends an abstract base class (`class UserSeeder extends BaseSeeder`), also in another file or through more than one level, is now found and listed. A file with only skipped classes is not imported. In a migration file, the first class that can be built is used. An annotation like `@sealed` or a comment word like `abstract` is not read as a modifier. The scan also reads generic classes (`class C extends Base<int>`), skips commented-out code and text in strings, skips private classes (`_Name`, but they can still be a parent), and, for migrations, reads a base class from any `.dart` file of `db/migration` (only timestamped files are registered).

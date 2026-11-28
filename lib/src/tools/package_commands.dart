@@ -92,6 +92,28 @@ class PackageCommands {
     }
   }
 
+  /// The `lib` folder of [package] in this app, from package_config.json,
+  /// or null when the app does not have it (or `dart pub get` did not
+  /// run yet).
+  Directory? packageLib(String package) {
+    try {
+      if (!_config.existsSync()) return null;
+      dynamic doc = jsonDecode(_config.readAsStringSync());
+      for (dynamic entry in (doc as Map)['packages'] as List) {
+        if (entry is! Map || entry['name'] != package) continue;
+        String rootUri = '${entry['rootUri']}';
+        if (!rootUri.endsWith('/')) rootUri = '$rootUri/';
+        Uri lib = _config.absolute.uri
+            .resolve(rootUri)
+            .resolve('${entry['packageUri'] ?? 'lib/'}');
+        return Directory.fromUri(lib);
+      }
+    } catch (error) {
+      return null;
+    }
+    return null;
+  }
+
   File get _pubspec => File('${root.path}/pubspec.yaml');
   File get _cache => File('${root.path}/.dart_tool/dox/commands.json');
 
