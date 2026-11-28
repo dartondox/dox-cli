@@ -104,6 +104,101 @@ void main() {
     });
   });
 
+  group('make:serializer | @Serialize() and --folder', () {
+    /// an app whose dox_annotation is in `pkg/` and has [source]
+    void fakeAnnotation(String source) {
+      File('pubspec.yaml').writeAsStringSync('name: my_app\n');
+      File('pkg/lib/src/a.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(source);
+      File('.dart_tool/package_config.json')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          '{"configVersion":2,"packages":[{"name":"dox_annotation",'
+          '"rootUri":"../pkg/","packageUri":"lib/"}]}',
+        );
+    }
+
+    test('flat by default, like before', () {
+      fakeAnnotation('class Other {}');
+      expect(makeSerializer(<String>['Post']), isTrue);
+      expect(
+        File('lib/app/serializers/post.serializer.dart').existsSync(),
+        isTrue,
+      );
+    });
+
+    test('--folder puts it in serializers/<name>/', () {
+      fakeAnnotation('class Other {}');
+      expect(makeSerializer(<String>['BlogPost', '--folder']), isTrue);
+      expect(
+        File('lib/app/serializers/blog_post/blog_post.serializer.dart')
+            .existsSync(),
+        isTrue,
+      );
+      expect(
+        File('lib/app/serializers/blog_post.serializer.dart').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('an unknown option stops with exit code 1', () {
+      fakeAnnotation('class Other {}');
+      int old = exitCode;
+      expect(makeSerializer(<String>['Post', '--nope']), isFalse);
+      expect(exitCode, 1);
+      exitCode = old;
+    });
+
+    test('an older dox_annotation: no @Serialize(), no part', () {
+      fakeAnnotation('class Other {}');
+      expect(appHasSerialize(), isFalse);
+      expect(createSerializer('Post'), isTrue);
+      String c = read('lib/app/serializers/post.serializer.dart');
+      expect(c, isNot(contains('@Serialize()')));
+      expect(c, isNot(contains('part ')));
+    });
+
+    test('no package_config.json: no @Serialize()', () {
+      File('pubspec.yaml').writeAsStringSync('name: my_app\n');
+      expect(appHasSerialize(), isFalse);
+    });
+
+    test('a dox_annotation with @Serialize(): annotation and part', () {
+      fakeAnnotation('class Serialize {\n  const Serialize();\n}');
+      expect(appHasSerialize(), isTrue);
+      expect(makeSerializer(<String>['BlogPost', '--folder']), isTrue);
+      String c = read(
+        'lib/app/serializers/blog_post/blog_post.serializer.dart',
+      );
+      expect(c, contains("part 'blog_post.serializer.g.dart';"));
+      expect(
+        c,
+        contains(
+          '@Serialize()\nclass BlogPostSerializer extends Serializer<BlogPost> {',
+        ),
+      );
+    });
+
+    test('a comment that names class Serialize does not count', () {
+      fakeAnnotation('// see class Serialize in v4\nclass Other {}');
+      expect(appHasSerialize(), isFalse);
+    });
+
+    test('a flat serializer stops a --folder one, and the other way', () {
+      fakeAnnotation('class Other {}');
+      expect(makeSerializer(<String>['Post']), isTrue);
+      expect(makeSerializer(<String>['Post', '--folder']), isFalse);
+      expect(makeSerializer(<String>['Tag', '--folder']), isTrue);
+      expect(makeSerializer(<String>['Tag']), isFalse);
+    });
+
+    test('a class named SerializeX is not @Serialize()', () {
+      fakeAnnotation('class SerializeOptions {}');
+      expect(appHasSerialize(), isFalse);
+    });
+  });
+
   group('generators | existing file is not overwritten', () {
     test('controller', () {
       createController('User', false);
