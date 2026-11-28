@@ -54,7 +54,11 @@ class ${className}Serializer extends Serializer<$className> {
 bool appHasSerialize({Directory? root}) {
   Directory? lib = PackageCommands(root: root).packageLib('dox_annotation');
   if (lib == null || !lib.existsSync()) return false;
-  RegExp annotation = RegExp(r'\bclass Serialize\b');
+  // a line that starts a class, so a comment that names it does not count
+  RegExp annotation = RegExp(
+    r'^\s*(abstract\s+|final\s+)?class Serialize\b',
+    multiLine: true,
+  );
   try {
     for (FileSystemEntity entity in lib.listSync(recursive: true)) {
       if (entity is File &&
@@ -101,7 +105,14 @@ bool createSerializer(String filename, {bool folder = false, bool? fast}) {
   String serializerName = '$filename.serializer';
   final file = File('$path$filename.serializer.dart');
 
-  if (file.existsSync()) {
+  // the flat file and the one in a folder are the same serializer
+  String base = '${Directory.current.path}/lib/app/serializers/';
+  File other = File(
+    folder
+        ? '$base$filename.serializer.dart'
+        : '$base$filename/$filename.serializer.dart',
+  );
+  if (file.existsSync() || other.existsSync()) {
     print('\x1B[32m$serializerName already exists\x1B[0m');
     return false;
   }

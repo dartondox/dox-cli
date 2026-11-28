@@ -180,6 +180,19 @@ void main() {
       );
     });
 
+    test('a comment that names class Serialize does not count', () {
+      fakeAnnotation('// see class Serialize in v4\nclass Other {}');
+      expect(appHasSerialize(), isFalse);
+    });
+
+    test('a flat serializer stops a --folder one, and the other way', () {
+      fakeAnnotation('class Other {}');
+      expect(makeSerializer(<String>['Post']), isTrue);
+      expect(makeSerializer(<String>['Post', '--folder']), isFalse);
+      expect(makeSerializer(<String>['Tag', '--folder']), isTrue);
+      expect(makeSerializer(<String>['Tag']), isFalse);
+    });
+
     test('a class named SerializeX is not @Serialize()', () {
       fakeAnnotation('class SerializeOptions {}');
       expect(appHasSerialize(), isFalse);
