@@ -37,7 +37,8 @@ part '$filename.serializer.g.dart';
 /// `@Serialize()` writes the JSON of [convert] with no `Map` in between.
 /// Run `dart run build_runner build` to make the `.g.dart` file.
 @Serialize()
-class ${className}Serializer extends Serializer<$className> {
+class ${className}Serializer extends Serializer<$className>
+    with _\$${className}Serializer {
   ${className}Serializer(super.data);
 
   @override

@@ -175,7 +175,8 @@ void main() {
       expect(
         c,
         contains(
-          '@Serialize()\nclass BlogPostSerializer extends Serializer<BlogPost>',
+          '@Serialize()\nclass BlogPostSerializer extends Serializer<BlogPost>\n'
+          r'    with _$BlogPostSerializer {',
         ),
       );
     });

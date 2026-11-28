@@ -1,7 +1,7 @@
 ## Unreleased
 
 - New: `dox make:serializer Post --folder` puts the file in `lib/app/serializers/post/`. Without `--folder`, the file goes in `lib/app/serializers/`, as before.
-- New: when the dox_annotation of the app has `@Serialize()`, `dox make:serializer` adds `@Serialize()` and the `part` line to the new file. Then the serializer writes its JSON with no `Map` in between. Run `dox build_runner:build` to make the `.g.dart` file. With an older dox_annotation, the file has no `@Serialize()`, so it compiles.
+- New: when the dox_annotation of the app has `@Serialize()`, `dox make:serializer` adds `@Serialize()`, `with _$PostSerializer` and the `part` line to the new file. Then the serializer writes its JSON with no `Map` in between. Run `dox build_runner:build` to make the `.g.dart` file. With an older dox_annotation, the file has no `@Serialize()`, so it compiles.
 
 ## 3.2.3
 
